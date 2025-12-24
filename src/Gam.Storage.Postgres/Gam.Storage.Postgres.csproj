@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    
+    <!-- Package metadata -->
+    <PackageId>Gam.Storage.Postgres</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>GAM.NET Contributors</Authors>
+    <Description>PostgreSQL storage implementation for GAM.NET with pgvector and pg_search (ParadeDB) support</Description>
+    <PackageTags>ai;memory;llm;agents;gam;postgresql;pgvector</PackageTags>
+    <PackageProjectUrl>https://github.com/VectorSpaceLab/general-agentic-memory</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/VectorSpaceLab/general-agentic-memory</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="9.0.2" />
+    <PackageReference Include="Pgvector" Version="0.3.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Gam.Core\Gam.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Gam.Core\Gam.Core.csproj" />
+    <ProjectReference Include="..\..\src\Gam.Storage.Postgres\Gam.Storage.Postgres.csproj" />
+    <ProjectReference Include="..\..\src\Gam.Providers.OpenAI\Gam.Providers.OpenAI.csproj" />
+  </ItemGroup>
+
+</Project>
