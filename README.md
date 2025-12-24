@@ -220,6 +220,94 @@ gam-dotnet/
 └── Gam.sln
 ```
 
+## AI SDK / Tool Calling Integration
+
+GAM.NET provides OpenAI-compatible tool schemas for integration with AI frameworks like Vercel AI SDK, LangChain, or direct OpenAI function calling.
+
+### Get Tool Schemas
+
+```csharp
+using Gam.Core.Tools;
+
+// Get tool definitions in OpenAI format
+var tools = GamToolSchemas.GetAllTools();
+
+// Or as JSON
+var json = GamToolSchemas.ToJson(indented: true);
+```
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `gam_memorize` | Store a conversation turn in long-term memory |
+| `gam_research` | Search memories for relevant context |
+| `gam_forget` | Delete memories for a user |
+
+### Execute Tool Calls
+
+```csharp
+using Gam.Core.Tools;
+
+var handler = new GamToolHandler(gamService);
+
+// Execute a tool call from an AI model
+var result = await handler.ExecuteAsync(
+    "gam_research",
+    """{"owner_id": "user-123", "query": "What did we discuss about Kubernetes?"}"""
+);
+
+if (result.Success)
+{
+    Console.WriteLine(result.Content); // Memory context for the model
+}
+```
+
+### REST API Endpoints
+
+The WebApi sample exposes these endpoints:
+
+```bash
+# Get tool schemas
+GET /tools
+
+# Execute any tool
+POST /tools/execute
+{ "name": "gam_research", "arguments": "{\"owner_id\": \"user-123\", \"query\": \"...\"}" }
+
+# Vercel AI SDK compatible
+POST /v1/tools/research
+{ "owner_id": "user-123", "query": "..." }
+```
+
+### Example: Vercel AI SDK Integration
+
+```typescript
+import { generateText, tool } from 'ai';
+
+const result = await generateText({
+  model: openai('gpt-4o'),
+  tools: {
+    gam_research: tool({
+      description: 'Search long-term memory for relevant context',
+      parameters: z.object({
+        owner_id: z.string(),
+        query: z.string(),
+      }),
+      execute: async ({ owner_id, query }) => {
+        const res = await fetch('http://localhost:5000/v1/tools/research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ owner_id, query }),
+        });
+        return res.json();
+      },
+    }),
+  },
+  prompt: 'What did the user previously ask about Kubernetes?',
+});
+```
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
