@@ -100,10 +100,24 @@ if (context.Pages.Count > 0)
 Console.WriteLine("Done!");
 Console.WriteLine();
 
-// Run comprehensive tests
-Console.WriteLine("Running comprehensive tests...");
-Console.WriteLine();
-var comprehensiveTest = new Gam.Sample.Console.ComprehensiveTest(gam, logger);
-await comprehensiveTest.RunAllTestsAsync();
+// Check command line args for mode
+if (args.Length > 0 && args[0] == "--query")
+{
+    // Query-only mode
+    var queryOnly = new Gam.Sample.Console.QueryOnly(gam);
+    await queryOnly.RunAsync();
+}
+else if (args.Length > 0 && args[0] == "--test")
+{
+    // Run comprehensive tests
+    Console.WriteLine("Running comprehensive tests...");
+    Console.WriteLine();
+    var comprehensiveTest = new Gam.Sample.Console.ComprehensiveTest(gam, logger);
+    await comprehensiveTest.RunAllTestsAsync();
+}
+else
+{
+    Console.WriteLine("Tip: Run with --query for interactive query mode, --test for comprehensive tests");
+}
 
 public partial class Program { }
