@@ -22,6 +22,20 @@ public interface IMemoryStore
     Task StorePageWithAbstractAsync(MemoryPage page, MemoryAbstract memoryAbstract, CancellationToken ct = default);
     Task DeleteByOwnerAsync(string ownerId, CancellationToken ct = default);
     
+    // TTL / Cleanup operations
+    /// <summary>
+    /// Delete memories older than the specified age.
+    /// </summary>
+    /// <param name="maxAge">Maximum age of memories to keep</param>
+    /// <param name="ownerId">Optional: only cleanup for specific owner</param>
+    /// <returns>Number of pages deleted</returns>
+    Task<int> CleanupExpiredAsync(TimeSpan maxAge, string? ownerId = null, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Delete memories created before the specified date.
+    /// </summary>
+    Task<int> DeleteBeforeAsync(DateTimeOffset before, string? ownerId = null, CancellationToken ct = default);
+    
     // Statistics
     Task<MemoryStats> GetStatsAsync(string ownerId, CancellationToken ct = default);
 }
@@ -35,4 +49,5 @@ public record MemoryStats
     public int TotalTokens { get; init; }
     public DateTimeOffset? OldestPage { get; init; }
     public DateTimeOffset? NewestPage { get; init; }
+    public int? ExpiredPages { get; init; }
 }

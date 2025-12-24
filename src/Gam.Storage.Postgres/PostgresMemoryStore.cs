@@ -199,6 +199,34 @@ public class PostgresMemoryStore : IMemoryStore
         };
     }
 
+    public async Task<int> CleanupExpiredAsync(TimeSpan maxAge, string? ownerId = null, CancellationToken ct = default)
+    {
+        var cutoff = DateTimeOffset.UtcNow - maxAge;
+        return await DeleteBeforeAsync(cutoff, ownerId, ct);
+    }
+
+    public async Task<int> DeleteBeforeAsync(DateTimeOffset before, string? ownerId = null, CancellationToken ct = default)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        
+        var sql = ownerId != null
+            ? "DELETE FROM memory_pages WHERE created_at < @before AND owner_id = @owner_id"
+            : "DELETE FROM memory_pages WHERE created_at < @before";
+            
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("before", before.UtcDateTime);
+        
+        if (ownerId != null)
+            cmd.Parameters.AddWithValue("owner_id", ownerId);
+
+        var deleted = await cmd.ExecuteNonQueryAsync(ct);
+        
+        if (deleted > 0)
+            _logger.LogInformation("Cleaned up {Count} expired memory pages (before {Before})", deleted, before);
+            
+        return deleted;
+    }
+
     public async Task<MemoryAbstract?> GetAbstractAsync(Guid pageId, CancellationToken ct = default)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);

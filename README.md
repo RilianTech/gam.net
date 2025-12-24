@@ -220,6 +220,39 @@ gam-dotnet/
 └── Gam.sln
 ```
 
+## Memory TTL (Time-To-Live)
+
+For long-running applications, you can enable automatic cleanup of old memories:
+
+```csharp
+// Add TTL with 30-day expiration
+services.AddGamMemoryTtl(TimeSpan.FromDays(30));
+
+// Or with full configuration
+services.AddGamMemoryTtl(options =>
+{
+    options.Enabled = true;
+    options.MaxAge = TimeSpan.FromDays(30);
+    options.CleanupInterval = TimeSpan.FromHours(1);
+    options.OwnerIds = null; // Cleanup all owners, or specify specific ones
+});
+```
+
+You can also manually clean up expired memories:
+
+```csharp
+var store = provider.GetRequiredService<IMemoryStore>();
+
+// Delete memories older than 30 days
+var deleted = await store.CleanupExpiredAsync(TimeSpan.FromDays(30));
+
+// Delete memories before a specific date
+await store.DeleteBeforeAsync(DateTimeOffset.UtcNow.AddDays(-30));
+
+// Delete only for a specific owner
+await store.CleanupExpiredAsync(TimeSpan.FromDays(30), ownerId: "user-123");
+```
+
 ## AI SDK / Tool Calling Integration
 
 GAM.NET provides OpenAI-compatible tool schemas for integration with AI frameworks like Vercel AI SDK, LangChain, or direct OpenAI function calling.
