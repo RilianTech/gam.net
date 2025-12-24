@@ -1,4 +1,5 @@
 -- GAM.NET PostgreSQL Schema
+-- Tested with: PostgreSQL 17 + pgvector
 -- Requires: pgvector extension for vector similarity search
 -- Optional: BM25 extension for better keyword search (see options below)
 

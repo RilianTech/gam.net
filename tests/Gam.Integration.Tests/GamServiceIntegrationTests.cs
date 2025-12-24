@@ -25,7 +25,7 @@ public class GamServiceIntegrationTests : IAsyncLifetime
     {
         // Start PostgreSQL container with pgvector
         _postgres = new PostgreSqlBuilder()
-            .WithImage("pgvector/pgvector:pg16")
+            .WithImage("pgvector/pgvector:pg17")
             .Build();
         
         await _postgres.StartAsync();
