@@ -3,8 +3,16 @@ using Gam.Core.Abstractions;
 using Gam.Core.Models;
 using Gam.Providers.OpenAI;
 using Gam.Storage.Postgres;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+// Build configuration
+var configuration = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: false)
+    .AddEnvironmentVariables()
+    .Build();
 
 // Configure services
 var services = new ServiceCollection();
@@ -16,14 +24,15 @@ services.AddLogging(builder => builder
 // Add GAM services
 services.AddGamCore();
 
-// Add PostgreSQL storage (requires PostgreSQL with pgvector)
-var connectionString = Environment.GetEnvironmentVariable("GAM_CONNECTION_STRING") 
-    ?? "Host=localhost;Database=gam;Username=postgres;Password=postgres";
+// Add PostgreSQL storage
+var connectionString = configuration.GetConnectionString("Postgres")
+    ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required in appsettings.json");
 services.AddGamPostgresStorage(connectionString);
 
-// Add OpenAI provider (requires OPENAI_API_KEY environment variable)
-var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-    ?? throw new InvalidOperationException("OPENAI_API_KEY environment variable is required");
+// Add OpenAI provider
+var apiKey = configuration["OpenAI:ApiKey"];
+if (string.IsNullOrWhiteSpace(apiKey))
+    throw new InvalidOperationException("OpenAI:ApiKey is required in appsettings.json or environment variable OpenAI__ApiKey");
 services.AddGamOpenAI(apiKey);
 
 var provider = services.BuildServiceProvider();
@@ -89,5 +98,12 @@ if (context.Pages.Count > 0)
 }
 
 Console.WriteLine("Done!");
+Console.WriteLine();
+
+// Run comprehensive tests
+Console.WriteLine("Running comprehensive tests...");
+Console.WriteLine();
+var comprehensiveTest = new Gam.Sample.Console.ComprehensiveTest(gam, logger);
+await comprehensiveTest.RunAllTestsAsync();
 
 public partial class Program { }

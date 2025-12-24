@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: gam-postgres
+    environment:
+      POSTGRES_DB: gam
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - gam_postgres_data:/var/lib/postgresql/data
+      - ./src/Gam.Storage.Postgres/Migrations/001_InitialSchema.sql:/docker-entrypoint-initdb.d/001_InitialSchema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gam"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  gam_postgres_data:

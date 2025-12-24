@@ -39,6 +39,6 @@ public record ResearchOptions
     /// <summary>Maximum total tokens in final context (default: 8000)</summary>
     public int MaxContextTokens { get; init; } = 8000;
     
-    /// <summary>Minimum relevance score to include page (default: 0.5)</summary>
-    public float MinRelevanceScore { get; init; } = 0.5f;
+    /// <summary>Minimum relevance score to include page (default: 0.3)</summary>
+    public float MinRelevanceScore { get; init; } = 0.3f;
 }
