@@ -6,6 +6,7 @@ using Gam.Storage.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -31,7 +32,7 @@ public class GamServiceIntegrationTests : IAsyncLifetime
 
         // Run migrations
         var connectionString = _postgres.GetConnectionString();
-        // Note: In real setup, run the SQL migration script here
+        await RunMigrationsAsync(connectionString);
 
         // Setup DI
         var services = new ServiceCollection();
@@ -68,7 +69,48 @@ public class GamServiceIntegrationTests : IAsyncLifetime
         _serviceProvider?.Dispose();
     }
 
-    [Fact(Skip = "Requires Docker and pgvector image")]
+    private static async Task RunMigrationsAsync(string connectionString)
+    {
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync();
+
+        // Create pgvector extension
+        await using var cmdExtension = new NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS vector;", conn);
+        await cmdExtension.ExecuteNonQueryAsync();
+
+        // Create tables
+        const string createTables = """
+            CREATE TABLE IF NOT EXISTS memory_pages (
+                id UUID PRIMARY KEY,
+                owner_id VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                token_count INTEGER NOT NULL,
+                embedding vector(1536),
+                metadata JSONB,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS memory_abstracts (
+                page_id UUID PRIMARY KEY REFERENCES memory_pages(id) ON DELETE CASCADE,
+                owner_id VARCHAR(255) NOT NULL,
+                summary TEXT NOT NULL,
+                headers TEXT[] NOT NULL,
+                summary_embedding vector(1536),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_pages_owner ON memory_pages(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_pages_created ON memory_pages(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_abstracts_owner ON memory_abstracts(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_pages_content_fts ON memory_pages USING gin(to_tsvector('english', content));
+            CREATE INDEX IF NOT EXISTS idx_abstracts_headers ON memory_abstracts USING gin(headers);
+            """;
+
+        await using var cmdTables = new NpgsqlCommand(createTables, conn);
+        await cmdTables.ExecuteNonQueryAsync();
+    }
+
+    [Fact]
     public async Task MemorizeAndResearch_ShouldWork()
     {
         // Arrange
