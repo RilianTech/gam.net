@@ -253,6 +253,129 @@ await store.DeleteBeforeAsync(DateTimeOffset.UtcNow.AddDays(-30));
 await store.CleanupExpiredAsync(TimeSpan.FromDays(30), ownerId: "user-123");
 ```
 
+## Configuration
+
+GAM.NET supports typed configuration via `appsettings.json`:
+
+```json
+{
+  "Gam": {
+    "Provider": "OpenAI",
+    "OpenAI": {
+      "ApiKey": "sk-...",
+      "Model": "gpt-4o",
+      "EmbeddingModel": "text-embedding-3-small",
+      "EmbeddingDimensions": 1536
+    },
+    "Research": {
+      "MaxIterations": 5,
+      "MaxPagesPerIteration": 10,
+      "MaxContextTokens": 8000,
+      "MinRelevanceScore": 0.3
+    },
+    "Storage": {
+      "ConnectionString": "Host=localhost;Database=gam",
+      "EmbeddingDimensions": 1536
+    },
+    "Ttl": {
+      "Enabled": true,
+      "MaxAgeDays": 30,
+      "CleanupIntervalHours": 1
+    },
+    "Prompts": {
+      "PromptDirectory": "/path/to/prompts",
+      "ContentPreviewLength": 200,
+      "MaxPagesInPlanPrompt": 5,
+      "MaxPagesInReflectPrompt": 7
+    }
+  }
+}
+```
+
+### Setup with Configuration
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddGamCore(builder.Configuration);
+builder.Services.AddGamPostgresStorage(builder.Configuration);
+builder.Services.AddGamOpenAI(builder.Configuration);
+```
+
+## Prompt Customization
+
+GAM.NET allows you to customize the prompts used by agents for memory generation and research.
+
+### Using Configuration
+
+Override prompts directly in `appsettings.json`:
+
+```json
+{
+  "Gam": {
+    "Prompts": {
+      "MemorySystemPrompt": "You are a librarian for a software development team...",
+      "PlanSystemPrompt": "You are a research assistant. Focus on code-related memories...",
+      "ReflectSystemPrompt": "Evaluate if the context is sufficient for answering..."
+    }
+  }
+}
+```
+
+### Using Prompt Files
+
+Store prompts in external files for easier editing:
+
+```json
+{
+  "Gam": {
+    "Prompts": {
+      "PromptDirectory": "/app/prompts"
+    }
+  }
+}
+```
+
+Create files in the directory:
+- `memory_system.txt` - System prompt for memory abstraction
+- `plan_system.txt` - System prompt for research planning
+- `reflect_system.txt` - System prompt for context evaluation
+
+### Custom Prompt Provider
+
+Implement `IPromptProvider` for full control:
+
+```csharp
+public class MyPromptProvider : IPromptProvider
+{
+    public string GetMemorySystemPrompt() => "Your custom prompt...";
+    
+    public string BuildMemoryUserPrompt(ConversationTurn turn)
+    {
+        return $"Summarize this: {turn.UserMessage}";
+    }
+    
+    // ... implement other methods
+}
+
+// Register your provider
+services.AddSingleton<IPromptProvider, MyPromptProvider>();
+```
+
+### Prompt Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `PromptDirectory` | null | Directory containing prompt template files |
+| `MemorySystemPrompt` | null | Override the memory agent system prompt |
+| `PlanSystemPrompt` | null | Override the research plan prompt |
+| `ReflectSystemPrompt` | null | Override the research reflect prompt |
+| `IncludeToolCalls` | true | Include tool call details in memory prompts |
+| `IncludeConversationId` | true | Include conversation ID in memory prompts |
+| `ContentPreviewLength` | 200 | Max chars of content preview in prompts |
+| `MaxPagesInPlanPrompt` | 5 | Max pages shown in plan prompt |
+| `MaxPagesInReflectPrompt` | 7 | Max pages shown in reflect prompt |
+
 ## AI SDK / Tool Calling Integration
 
 GAM.NET provides OpenAI-compatible tool schemas for integration with AI frameworks like Vercel AI SDK, LangChain, or direct OpenAI function calling.

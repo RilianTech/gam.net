@@ -2,6 +2,7 @@ using FluentAssertions;
 using Gam.Core.Abstractions;
 using Gam.Core.Agents;
 using Gam.Core.Models;
+using Gam.Core.Prompts;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -12,6 +13,7 @@ public class MemoryAgentTests
 {
     private readonly Mock<ILlmProvider> _llmMock;
     private readonly Mock<IEmbeddingProvider> _embeddingMock;
+    private readonly Mock<IPromptProvider> _promptProviderMock;
     private readonly Mock<ILogger<MemoryAgent>> _loggerMock;
     private readonly MemoryAgent _agent;
 
@@ -19,9 +21,14 @@ public class MemoryAgentTests
     {
         _llmMock = new Mock<ILlmProvider>();
         _embeddingMock = new Mock<IEmbeddingProvider>();
+        _promptProviderMock = new Mock<IPromptProvider>();
         _loggerMock = new Mock<ILogger<MemoryAgent>>();
         
-        _agent = new MemoryAgent(_llmMock.Object, _embeddingMock.Object, _loggerMock.Object);
+        // Setup default prompt provider behavior
+        _promptProviderMock.Setup(x => x.GetMemorySystemPrompt()).Returns("System prompt");
+        _promptProviderMock.Setup(x => x.BuildMemoryUserPrompt(It.IsAny<ConversationTurn>())).Returns("User prompt");
+        
+        _agent = new MemoryAgent(_llmMock.Object, _embeddingMock.Object, _promptProviderMock.Object, _loggerMock.Object);
     }
 
     [Fact]

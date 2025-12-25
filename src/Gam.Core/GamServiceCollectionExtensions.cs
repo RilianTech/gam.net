@@ -1,6 +1,9 @@
 using Gam.Core.Abstractions;
 using Gam.Core.Agents;
+using Gam.Core.Configuration;
+using Gam.Core.Prompts;
 using Gam.Core.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Gam.Core;
@@ -16,9 +19,45 @@ public static class GamServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddGamCore(this IServiceCollection services)
     {
+        services.AddSingleton<IPromptProvider, DefaultPromptProvider>();
         services.AddSingleton<IMemoryAgent, MemoryAgent>();
         services.AddSingleton<IResearchAgent, ResearchAgent>();
         services.AddSingleton<IGamService, GamService>();
+        return services;
+    }
+
+    /// <summary>
+    /// Add GAM core services with research options from configuration.
+    /// </summary>
+    public static IServiceCollection AddGamCore(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string sectionName = GamOptions.SectionName)
+    {
+        var section = configuration.GetSection(sectionName);
+        services.Configure<GamOptions>(section);
+        
+        // Configure prompt options from the Prompts subsection
+        var promptSection = section.GetSection("Prompts");
+        services.Configure<PromptOptions>(promptSection);
+        
+        services.AddSingleton<IPromptProvider, DefaultPromptProvider>();
+        services.AddSingleton<IMemoryAgent, MemoryAgent>();
+        services.AddSingleton<IResearchAgent, ResearchAgent>();
+        services.AddSingleton<IGamService, GamService>();
+        
+        // Configure TTL if enabled
+        var options = section.Get<GamOptions>();
+        if (options?.Ttl.Enabled == true)
+        {
+            services.AddGamMemoryTtl(opts =>
+            {
+                opts.Enabled = true;
+                opts.MaxAge = TimeSpan.FromDays(options.Ttl.MaxAgeDays);
+                opts.CleanupInterval = TimeSpan.FromHours(options.Ttl.CleanupIntervalHours);
+            });
+        }
+        
         return services;
     }
 

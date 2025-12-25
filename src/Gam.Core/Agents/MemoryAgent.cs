@@ -14,15 +14,18 @@ public class MemoryAgent : IMemoryAgent
 {
     private readonly ILlmProvider _llm;
     private readonly IEmbeddingProvider _embedding;
+    private readonly IPromptProvider _promptProvider;
     private readonly ILogger<MemoryAgent> _logger;
 
     public MemoryAgent(
         ILlmProvider llm,
         IEmbeddingProvider embedding,
+        IPromptProvider promptProvider,
         ILogger<MemoryAgent> logger)
     {
         _llm = llm;
         _embedding = embedding;
+        _promptProvider = promptProvider;
         _logger = logger;
     }
 
@@ -30,12 +33,13 @@ public class MemoryAgent : IMemoryAgent
         ConversationTurn turn,
         CancellationToken ct = default)
     {
-        var prompt = MemoryPrompts.BuildAbstractPrompt(turn);
+        var systemPrompt = _promptProvider.GetMemorySystemPrompt();
+        var userPrompt = _promptProvider.BuildMemoryUserPrompt(turn);
         
         var messages = new List<LlmMessage>
         {
-            new(LlmRole.System, MemoryPrompts.AbstractSystemPrompt),
-            new(LlmRole.User, prompt)
+            new(LlmRole.System, systemPrompt),
+            new(LlmRole.User, userPrompt)
         };
 
         _logger.LogDebug("Generating abstract for conversation turn from {OwnerId}", turn.OwnerId);

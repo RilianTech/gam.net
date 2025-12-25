@@ -19,6 +19,7 @@ public class ResearchAgent : IResearchAgent
     private readonly IVectorRetriever _vectorRetriever;
     private readonly IPageIndexRetriever _pageIndexRetriever;
     private readonly IMemoryStore _store;
+    private readonly IPromptProvider _promptProvider;
     private readonly ILogger<ResearchAgent> _logger;
 
     public ResearchAgent(
@@ -28,6 +29,7 @@ public class ResearchAgent : IResearchAgent
         IVectorRetriever vectorRetriever,
         IPageIndexRetriever pageIndexRetriever,
         IMemoryStore store,
+        IPromptProvider promptProvider,
         ILogger<ResearchAgent> logger)
     {
         _llm = llm;
@@ -36,6 +38,7 @@ public class ResearchAgent : IResearchAgent
         _vectorRetriever = vectorRetriever;
         _pageIndexRetriever = pageIndexRetriever;
         _store = store;
+        _promptProvider = promptProvider;
         _logger = logger;
     }
 
@@ -148,8 +151,8 @@ public class ResearchAgent : IResearchAgent
     {
         var messages = new List<LlmMessage>
         {
-            new(LlmRole.System, ResearchPrompts.PlanSystemPrompt),
-            new(LlmRole.User, ResearchPrompts.BuildPlanPrompt(ctx.Query.Query, ctx.Pages))
+            new(LlmRole.System, _promptProvider.GetPlanSystemPrompt()),
+            new(LlmRole.User, _promptProvider.BuildPlanUserPrompt(ctx.Query.Query, ctx.Pages))
         };
 
         var response = await _llm.CompleteAsync(messages, 
@@ -241,8 +244,8 @@ public class ResearchAgent : IResearchAgent
 
         var messages = new List<LlmMessage>
         {
-            new(LlmRole.System, ResearchPrompts.ReflectSystemPrompt),
-            new(LlmRole.User, ResearchPrompts.BuildReflectPrompt(ctx.Query.Query, ctx.Pages))
+            new(LlmRole.System, _promptProvider.GetReflectSystemPrompt()),
+            new(LlmRole.User, _promptProvider.BuildReflectUserPrompt(ctx.Query.Query, ctx.Pages))
         };
 
         var response = await _llm.CompleteAsync(messages,
