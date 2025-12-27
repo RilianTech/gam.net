@@ -1,0 +1,32 @@
+# Docker Compose for GAM.NET with Timescale pg_textsearch
+# Uses timescale/timescaledb-ha image which includes pgvector and pg_textsearch
+#
+# Usage:
+#   docker compose -f samples/docker-compose.timescale.yml up -d
+#
+# Documentation: https://github.com/timescale/pg_textsearch
+# Note: pg_textsearch is PostgreSQL licensed (most permissive)
+
+name: gam-timescale
+
+services:
+  postgres:
+    image: timescale/timescaledb-ha:pg17
+    container_name: gam-postgres-timescale
+    environment:
+      POSTGRES_DB: gam
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"  # Using 5433 to avoid conflict with main postgres
+    volumes:
+      - gam_timescale_data:/home/postgres/pgdata/data
+      - ./timescale-init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gam"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  gam_timescale_data:

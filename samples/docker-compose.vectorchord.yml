@@ -1,0 +1,31 @@
+# Docker Compose for GAM.NET with VectorChord-bm25 (TensorChord)
+# Uses the vchord-suite image which includes pgvector, pg_tokenizer, and vchord_bm25
+# 
+# Usage:
+#   docker compose -f samples/docker-compose.vectorchord.yml up -d
+#
+# Documentation: https://github.com/tensorchord/VectorChord-bm25
+
+name: gam-vectorchord
+
+services:
+  postgres:
+    image: tensorchord/vchord-suite:pg17-latest
+    container_name: gam-postgres-vectorchord
+    environment:
+      POSTGRES_DB: gam
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"  # Using 5434 to avoid conflict with main postgres
+    volumes:
+      - gam_vectorchord_data:/var/lib/postgresql/data
+      - ./vectorchord-init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gam"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  gam_vectorchord_data:
