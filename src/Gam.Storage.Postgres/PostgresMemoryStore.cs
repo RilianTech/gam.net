@@ -264,6 +264,27 @@ public class PostgresMemoryStore : IMemoryStore
         return abstracts;
     }
 
+    public async Task<IReadOnlyList<MemoryAbstract>> GetAbstractsAsync(
+        string ownerId, CancellationToken ct = default)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT page_id, owner_id, summary, headers, summary_embedding, created_at
+            FROM memory_abstracts 
+            WHERE owner_id = @owner_id
+            ORDER BY created_at DESC
+            """, conn);
+        cmd.Parameters.AddWithValue("owner_id", ownerId);
+
+        var abstracts = new List<MemoryAbstract>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            abstracts.Add(MapAbstract(reader));
+        }
+        return abstracts;
+    }
+
     private static MemoryPage MapPage(NpgsqlDataReader reader) => new()
     {
         Id = reader.GetGuid(0),
