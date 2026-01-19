@@ -22,4 +22,18 @@ public record MemoryAbstract
     
     /// <summary>Embedding of the summary for semantic search.</summary>
     public float[]? SummaryEmbedding { get; init; }
+    
+    // === ADR-0002 Enhancements ===
+    
+    /// <summary>
+    /// Classification of memory content type.
+    /// Enables filtered retrieval (e.g., "find only Decision memories").
+    /// </summary>
+    public MemoryType Type { get; init; } = MemoryType.Conversation;
+    
+    /// <summary>
+    /// Entity and keyword tags for precise retrieval.
+    /// Format: "entity:person:john", "entity:tool:postgresql", "keyword:database"
+    /// </summary>
+    public IReadOnlyList<string> Tags { get; init; } = [];
 }

@@ -25,4 +25,20 @@ public record MemoryPage
     
     /// <summary>Embedding vector for semantic search.</summary>
     public float[]? Embedding { get; init; }
+    
+    // === ADR-0002 Enhancements ===
+    
+    /// <summary>
+    /// Importance score (0.0-1.0). Higher values indicate more significant memories.
+    /// 0.8-1.0: Critical decisions, key facts, important preferences
+    /// 0.5-0.7: Useful context, moderate relevance (default)
+    /// 0.2-0.4: Minor details, low future relevance
+    /// </summary>
+    public float Importance { get; init; } = 0.5f;
+    
+    /// <summary>Number of times this memory has been retrieved.</summary>
+    public int AccessCount { get; init; } = 0;
+    
+    /// <summary>When this memory was last accessed/retrieved.</summary>
+    public DateTimeOffset? LastAccessedAt { get; init; }
 }

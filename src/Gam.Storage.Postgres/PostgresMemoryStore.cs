@@ -25,7 +25,8 @@ public class PostgresMemoryStore : IMemoryStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
-            SELECT id, owner_id, content, token_count, embedding, metadata, created_at
+            SELECT id, owner_id, content, token_count, embedding, metadata, created_at,
+                   importance, access_count, last_accessed_at
             FROM memory_pages WHERE id = @id
             """, conn);
         
@@ -45,7 +46,8 @@ public class PostgresMemoryStore : IMemoryStore
 
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
-            SELECT id, owner_id, content, token_count, embedding, metadata, created_at
+            SELECT id, owner_id, content, token_count, embedding, metadata, created_at,
+                   importance, access_count, last_accessed_at
             FROM memory_pages WHERE id = ANY(@ids)
             """, conn);
         
@@ -64,13 +66,16 @@ public class PostgresMemoryStore : IMemoryStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
-            INSERT INTO memory_pages (id, owner_id, content, token_count, embedding, metadata, created_at)
-            VALUES (@id, @owner_id, @content, @token_count, @embedding, @metadata, @created_at)
+            INSERT INTO memory_pages (id, owner_id, content, token_count, embedding, metadata, created_at,
+                                      importance, access_count, last_accessed_at)
+            VALUES (@id, @owner_id, @content, @token_count, @embedding, @metadata, @created_at,
+                    @importance, @access_count, @last_accessed_at)
             ON CONFLICT (id) DO UPDATE SET
                 content = EXCLUDED.content,
                 token_count = EXCLUDED.token_count,
                 embedding = EXCLUDED.embedding,
-                metadata = EXCLUDED.metadata
+                metadata = EXCLUDED.metadata,
+                importance = EXCLUDED.importance
             """, conn);
 
         cmd.Parameters.AddWithValue("id", page.Id);
@@ -82,6 +87,10 @@ public class PostgresMemoryStore : IMemoryStore
         cmd.Parameters.AddWithValue("metadata", page.Metadata != null 
             ? JsonSerializer.Serialize(page.Metadata) : DBNull.Value);
         cmd.Parameters.AddWithValue("created_at", page.CreatedAt);
+        cmd.Parameters.AddWithValue("importance", page.Importance);
+        cmd.Parameters.AddWithValue("access_count", page.AccessCount);
+        cmd.Parameters.AddWithValue("last_accessed_at", page.LastAccessedAt.HasValue 
+            ? page.LastAccessedAt.Value.UtcDateTime : DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync(ct);
     }
@@ -90,12 +99,16 @@ public class PostgresMemoryStore : IMemoryStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
-            INSERT INTO memory_abstracts (page_id, owner_id, summary, headers, summary_embedding, created_at)
-            VALUES (@page_id, @owner_id, @summary, @headers, @embedding, @created_at)
+            INSERT INTO memory_abstracts (page_id, owner_id, summary, headers, summary_embedding, created_at,
+                                          memory_type, tags)
+            VALUES (@page_id, @owner_id, @summary, @headers, @embedding, @created_at,
+                    @memory_type, @tags)
             ON CONFLICT (page_id) DO UPDATE SET
                 summary = EXCLUDED.summary,
                 headers = EXCLUDED.headers,
-                summary_embedding = EXCLUDED.summary_embedding
+                summary_embedding = EXCLUDED.summary_embedding,
+                memory_type = EXCLUDED.memory_type,
+                tags = EXCLUDED.tags
             """, conn);
 
         cmd.Parameters.AddWithValue("page_id", abs.PageId);
@@ -105,6 +118,8 @@ public class PostgresMemoryStore : IMemoryStore
         cmd.Parameters.AddWithValue("embedding", abs.SummaryEmbedding != null 
             ? new Vector(abs.SummaryEmbedding) : DBNull.Value);
         cmd.Parameters.AddWithValue("created_at", abs.CreatedAt);
+        cmd.Parameters.AddWithValue("memory_type", abs.Type.ToDbString());
+        cmd.Parameters.AddWithValue("tags", abs.Tags.ToArray());
 
         await cmd.ExecuteNonQueryAsync(ct);
     }
@@ -119,8 +134,10 @@ public class PostgresMemoryStore : IMemoryStore
         {
             // Store page
             await using (var cmd = new NpgsqlCommand("""
-                INSERT INTO memory_pages (id, owner_id, content, token_count, embedding, metadata, created_at)
-                VALUES (@id, @owner_id, @content, @token_count, @embedding, @metadata, @created_at)
+                INSERT INTO memory_pages (id, owner_id, content, token_count, embedding, metadata, created_at,
+                                          importance, access_count, last_accessed_at)
+                VALUES (@id, @owner_id, @content, @token_count, @embedding, @metadata, @created_at,
+                        @importance, @access_count, @last_accessed_at)
                 """, conn, tx))
             {
                 cmd.Parameters.AddWithValue("id", page.Id);
@@ -132,13 +149,19 @@ public class PostgresMemoryStore : IMemoryStore
                 cmd.Parameters.AddWithValue("metadata", page.Metadata != null 
                     ? JsonSerializer.Serialize(page.Metadata) : DBNull.Value);
                 cmd.Parameters.AddWithValue("created_at", page.CreatedAt);
+                cmd.Parameters.AddWithValue("importance", page.Importance);
+                cmd.Parameters.AddWithValue("access_count", page.AccessCount);
+                cmd.Parameters.AddWithValue("last_accessed_at", page.LastAccessedAt.HasValue 
+                    ? page.LastAccessedAt.Value.UtcDateTime : DBNull.Value);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
 
             // Store abstract  
             await using (var cmd = new NpgsqlCommand("""
-                INSERT INTO memory_abstracts (page_id, owner_id, summary, headers, summary_embedding, created_at)
-                VALUES (@page_id, @owner_id, @summary, @headers, @embedding, @created_at)
+                INSERT INTO memory_abstracts (page_id, owner_id, summary, headers, summary_embedding, created_at,
+                                              memory_type, tags)
+                VALUES (@page_id, @owner_id, @summary, @headers, @embedding, @created_at,
+                        @memory_type, @tags)
                 """, conn, tx))
             {
                 cmd.Parameters.AddWithValue("page_id", abs.PageId);
@@ -148,6 +171,8 @@ public class PostgresMemoryStore : IMemoryStore
                 cmd.Parameters.AddWithValue("embedding", abs.SummaryEmbedding != null 
                     ? new Vector(abs.SummaryEmbedding) : DBNull.Value);
                 cmd.Parameters.AddWithValue("created_at", abs.CreatedAt);
+                cmd.Parameters.AddWithValue("memory_type", abs.Type.ToDbString());
+                cmd.Parameters.AddWithValue("tags", abs.Tags.ToArray());
                 await cmd.ExecuteNonQueryAsync(ct);
             }
 
@@ -231,7 +256,8 @@ public class PostgresMemoryStore : IMemoryStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
-            SELECT page_id, owner_id, summary, headers, summary_embedding, created_at
+            SELECT page_id, owner_id, summary, headers, summary_embedding, created_at,
+                   memory_type, tags
             FROM memory_abstracts WHERE page_id = @id
             """, conn);
         cmd.Parameters.AddWithValue("id", pageId);
@@ -250,7 +276,8 @@ public class PostgresMemoryStore : IMemoryStore
 
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
-            SELECT page_id, owner_id, summary, headers, summary_embedding, created_at
+            SELECT page_id, owner_id, summary, headers, summary_embedding, created_at,
+                   memory_type, tags
             FROM memory_abstracts WHERE page_id = ANY(@ids)
             """, conn);
         cmd.Parameters.AddWithValue("ids", ids.ToArray());
@@ -269,7 +296,8 @@ public class PostgresMemoryStore : IMemoryStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
-            SELECT page_id, owner_id, summary, headers, summary_embedding, created_at
+            SELECT page_id, owner_id, summary, headers, summary_embedding, created_at,
+                   memory_type, tags
             FROM memory_abstracts 
             WHERE owner_id = @owner_id
             ORDER BY created_at DESC
@@ -294,7 +322,11 @@ public class PostgresMemoryStore : IMemoryStore
         Embedding = reader.IsDBNull(4) ? null : ((Vector)reader.GetValue(4)).ToArray(),
         Metadata = reader.IsDBNull(5) ? null : 
             JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(5)),
-        CreatedAt = reader.GetDateTime(6)
+        CreatedAt = reader.GetDateTime(6),
+        // ADR-0002 fields (with fallback for existing data without these columns)
+        Importance = reader.FieldCount > 7 && !reader.IsDBNull(7) ? reader.GetFloat(7) : 0.5f,
+        AccessCount = reader.FieldCount > 8 && !reader.IsDBNull(8) ? reader.GetInt32(8) : 0,
+        LastAccessedAt = reader.FieldCount > 9 && !reader.IsDBNull(9) ? reader.GetDateTime(9) : null
     };
 
     private static MemoryAbstract MapAbstract(NpgsqlDataReader reader) => new()
@@ -304,6 +336,32 @@ public class PostgresMemoryStore : IMemoryStore
         Summary = reader.GetString(2),
         Headers = ((string[])reader.GetValue(3)).ToList(),
         SummaryEmbedding = reader.IsDBNull(4) ? null : ((Vector)reader.GetValue(4)).ToArray(),
-        CreatedAt = reader.GetDateTime(5)
+        CreatedAt = reader.GetDateTime(5),
+        // ADR-0002 fields (with fallback for existing data without these columns)
+        Type = reader.FieldCount > 6 && !reader.IsDBNull(6) 
+            ? MemoryTypeExtensions.ParseMemoryType(reader.GetString(6)) 
+            : MemoryType.Conversation,
+        Tags = reader.FieldCount > 7 && !reader.IsDBNull(7) 
+            ? ((string[])reader.GetValue(7)).ToList() 
+            : []
     };
+    
+    /// <summary>
+    /// Updates access tracking for retrieved pages.
+    /// </summary>
+    public async Task UpdateAccessAsync(IEnumerable<Guid> pageIds, CancellationToken ct = default)
+    {
+        var ids = pageIds.ToList();
+        if (ids.Count == 0) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            UPDATE memory_pages 
+            SET access_count = access_count + 1,
+                last_accessed_at = NOW()
+            WHERE id = ANY(@ids)
+            """, conn);
+        cmd.Parameters.AddWithValue("ids", ids.ToArray());
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
 }

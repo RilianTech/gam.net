@@ -43,6 +43,12 @@ public interface IMemoryStore
     
     // Statistics
     Task<MemoryStats> GetStatsAsync(string ownerId, CancellationToken ct = default);
+    
+    // Access tracking (ADR-0002)
+    /// <summary>
+    /// Update access tracking for retrieved pages (increments access_count, updates last_accessed_at).
+    /// </summary>
+    Task UpdateAccessAsync(IEnumerable<Guid> pageIds, CancellationToken ct = default);
 }
 
 /// <summary>
