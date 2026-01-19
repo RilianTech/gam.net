@@ -29,7 +29,7 @@ public class MemoryAgent : IMemoryAgent
         _logger = logger;
     }
 
-    public async Task<MemoryAbstract> GenerateAbstractAsync(
+    public async Task<AbstractGenerationResult> GenerateAbstractAsync(
         ConversationTurn turn,
         CancellationToken ct = default)
     {
@@ -50,21 +50,31 @@ public class MemoryAgent : IMemoryAgent
             MaxTokens = 1000
         }, ct);
 
-        var parsed = ParseAbstractResponse(response.Content);
+        var parsed = MemoryPrompts.ParseAbstractResponse(response.Content);
         
         // Generate embedding for the summary
         var summaryEmbedding = await _embedding.EmbedAsync(parsed.Summary, ct);
 
-        _logger.LogDebug("Generated abstract with {HeaderCount} headers", parsed.Headers.Count);
+        _logger.LogDebug("Generated abstract with {HeaderCount} headers, type={Type}, importance={Importance:F2}, tags={TagCount}", 
+            parsed.Headers.Count, parsed.Type, parsed.Importance, parsed.Tags.Count);
 
-        return new MemoryAbstract
+        var memoryAbstract = new MemoryAbstract
         {
             PageId = Guid.NewGuid(),  // Will be set when creating page
             OwnerId = turn.OwnerId,
             Summary = parsed.Summary,
             Headers = parsed.Headers,
             CreatedAt = DateTimeOffset.UtcNow,
-            SummaryEmbedding = summaryEmbedding
+            SummaryEmbedding = summaryEmbedding,
+            // ADR-0002 fields
+            Type = parsed.Type,
+            Tags = parsed.Tags
+        };
+        
+        return new AbstractGenerationResult
+        {
+            Abstract = memoryAbstract,
+            Importance = parsed.Importance
         };
     }
 
@@ -114,40 +124,6 @@ public class MemoryAgent : IMemoryAgent
         }
         
         return sb.ToString();
-    }
-
-    private static (string Summary, IReadOnlyList<string> Headers) ParseAbstractResponse(string response)
-    {
-        // Expected format:
-        // SUMMARY: <summary text>
-        // HEADERS:
-        // - Header 1
-        // - Header 2
-        
-        var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var summary = "";
-        var headers = new List<string>();
-        var inHeaders = false;
-
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-            
-            if (trimmed.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase))
-            {
-                summary = trimmed["SUMMARY:".Length..].Trim();
-            }
-            else if (trimmed.StartsWith("HEADERS:", StringComparison.OrdinalIgnoreCase))
-            {
-                inHeaders = true;
-            }
-            else if (inHeaders && trimmed.StartsWith("-"))
-            {
-                headers.Add(trimmed[1..].Trim());
-            }
-        }
-
-        return (summary, headers);
     }
 
     private static int EstimateTokenCount(string text)

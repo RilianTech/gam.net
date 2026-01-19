@@ -33,16 +33,20 @@ public class GamService : IGamService
         // Create the memory page
         var page = await _memoryAgent.CreatePageAsync(request.Turn, ct);
         
-        // Generate abstract
-        var abstractData = await _memoryAgent.GenerateAbstractAsync(request.Turn, ct);
+        // Generate abstract (includes type, importance, tags from ADR-0002)
+        var result = await _memoryAgent.GenerateAbstractAsync(request.Turn, ct);
         
         // Update abstract with correct page ID
-        abstractData = abstractData with { PageId = page.Id };
+        var abstractData = result.Abstract with { PageId = page.Id };
+        
+        // Copy importance from abstract generation to page (ADR-0002)
+        page = page with { Importance = result.Importance };
         
         // Store both
         await _store.StorePageWithAbstractAsync(page, abstractData, ct);
         
-        _logger.LogInformation("Stored memory page {PageId} for {OwnerId}", page.Id, request.Turn.OwnerId);
+        _logger.LogInformation("Stored memory page {PageId} for {OwnerId} (type={Type}, importance={Importance:F2})", 
+            page.Id, request.Turn.OwnerId, abstractData.Type, page.Importance);
     }
 
     public async Task<MemoryContext> ResearchAsync(ResearchRequest request, CancellationToken ct = default)

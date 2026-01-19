@@ -9,9 +9,10 @@ using Gam.Core.Models;
 public interface IMemoryAgent
 {
     /// <summary>
-    /// Generate an abstract (summary + headers) for a conversation turn.
+    /// Generate an abstract (summary + headers + type + tags) for a conversation turn.
+    /// Also returns importance score for the memory page.
     /// </summary>
-    Task<MemoryAbstract> GenerateAbstractAsync(
+    Task<AbstractGenerationResult> GenerateAbstractAsync(
         ConversationTurn turn, 
         CancellationToken ct = default);
     
@@ -22,4 +23,19 @@ public interface IMemoryAgent
     Task<MemoryPage> CreatePageAsync(
         ConversationTurn turn, 
         CancellationToken ct = default);
+}
+
+/// <summary>
+/// Result of abstract generation, including importance score for the page.
+/// </summary>
+public record AbstractGenerationResult
+{
+    /// <summary>The generated abstract with summary, headers, type, and tags.</summary>
+    public required MemoryAbstract Abstract { get; init; }
+    
+    /// <summary>
+    /// Importance score (0.0-1.0) determined during abstract generation.
+    /// Should be stored on the MemoryPage.
+    /// </summary>
+    public float Importance { get; init; } = 0.5f;
 }

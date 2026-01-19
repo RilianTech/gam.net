@@ -95,13 +95,65 @@ public class MemoryAgentTests
             .ReturnsAsync(expectedEmbedding);
 
         // Act
-        var abstractResult = await _agent.GenerateAbstractAsync(turn);
+        var result = await _agent.GenerateAbstractAsync(turn);
 
         // Assert
-        abstractResult.Should().NotBeNull();
-        abstractResult.Summary.Should().Contain("Docker");
-        abstractResult.Headers.Should().Contain("Docker");
-        abstractResult.Headers.Should().Contain("containerization");
-        abstractResult.SummaryEmbedding.Should().BeEquivalentTo(expectedEmbedding);
+        result.Should().NotBeNull();
+        result.Abstract.Summary.Should().Contain("Docker");
+        result.Abstract.Headers.Should().Contain("Docker");
+        result.Abstract.Headers.Should().Contain("containerization");
+        result.Abstract.SummaryEmbedding.Should().BeEquivalentTo(expectedEmbedding);
+        // Legacy format defaults
+        result.Abstract.Type.Should().Be(MemoryType.Conversation);
+        result.Importance.Should().Be(0.5f);
+    }
+    
+    [Fact]
+    public async Task GenerateAbstractAsync_ShouldParseJsonResponse()
+    {
+        // Arrange
+        var turn = new ConversationTurn
+        {
+            OwnerId = "test-user",
+            UserMessage = "Let's use PostgreSQL for the database",
+            AssistantMessage = "PostgreSQL is a great choice for ACID compliance...",
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        var llmResponse = new LlmResponse
+        {
+            Content = """
+                {
+                  "summary": "Decision to use PostgreSQL for database due to ACID compliance.",
+                  "headers": ["PostgreSQL", "database decision", "ACID"],
+                  "type": "decision",
+                  "importance": 0.85,
+                  "tags": ["entity:tool:postgresql", "keyword:database", "keyword:acid"]
+                }
+                """,
+            PromptTokens = 100,
+            CompletionTokens = 50
+        };
+
+        _llmMock
+            .Setup(x => x.CompleteAsync(It.IsAny<IReadOnlyList<LlmMessage>>(), It.IsAny<LlmOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(llmResponse);
+
+        var expectedEmbedding = new float[] { 0.1f, 0.2f };
+        _embeddingMock
+            .Setup(x => x.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedEmbedding);
+
+        // Act
+        var result = await _agent.GenerateAbstractAsync(turn);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Abstract.Summary.Should().Contain("PostgreSQL");
+        result.Abstract.Headers.Should().Contain("PostgreSQL");
+        result.Abstract.Type.Should().Be(MemoryType.Decision);
+        result.Importance.Should().BeApproximately(0.85f, 0.01f);
+        result.Abstract.Tags.Should().Contain("entity:tool:postgresql");
+        result.Abstract.Tags.Should().Contain("keyword:database");
     }
 }
