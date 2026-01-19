@@ -364,4 +364,163 @@ public class PostgresMemoryStore : IMemoryStore
         cmd.Parameters.AddWithValue("ids", ids.ToArray());
         await cmd.ExecuteNonQueryAsync(ct);
     }
+    
+    // ========================================================================
+    // Relationship operations (ADR-0002 Phase 4)
+    // ========================================================================
+    
+    public async Task StoreRelationshipAsync(MemoryRelationship relationship, CancellationToken ct = default)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            INSERT INTO memory_relationships (id, source_page_id, target_page_id, relationship_type, confidence, created_by, created_at)
+            VALUES (@id, @source_page_id, @target_page_id, @relationship_type, @confidence, @created_by, @created_at)
+            ON CONFLICT (source_page_id, target_page_id, relationship_type) DO UPDATE SET
+                confidence = EXCLUDED.confidence,
+                created_by = EXCLUDED.created_by
+            """, conn);
+        
+        AddRelationshipParams(cmd, relationship);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+    
+    public async Task StoreRelationshipsAsync(IEnumerable<MemoryRelationship> relationships, CancellationToken ct = default)
+    {
+        var list = relationships.ToList();
+        if (list.Count == 0) return;
+        
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        
+        try
+        {
+            foreach (var rel in list)
+            {
+                await using var cmd = new NpgsqlCommand("""
+                    INSERT INTO memory_relationships (id, source_page_id, target_page_id, relationship_type, confidence, created_by, created_at)
+                    VALUES (@id, @source_page_id, @target_page_id, @relationship_type, @confidence, @created_by, @created_at)
+                    ON CONFLICT (source_page_id, target_page_id, relationship_type) DO NOTHING
+                    """, conn, tx);
+                
+                AddRelationshipParams(cmd, rel);
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
+    }
+    
+    public async Task<IReadOnlyList<MemoryRelationship>> GetRelationshipsFromAsync(
+        IEnumerable<Guid> sourcePageIds,
+        RelationshipType[]? types = null,
+        CancellationToken ct = default)
+    {
+        var ids = sourcePageIds.ToList();
+        if (ids.Count == 0) return [];
+        
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        
+        var sql = """
+            SELECT id, source_page_id, target_page_id, relationship_type, confidence, created_by, created_at
+            FROM memory_relationships
+            WHERE source_page_id = ANY(@ids)
+            """;
+        
+        if (types is { Length: > 0 })
+        {
+            sql += " AND relationship_type = ANY(@types)";
+        }
+        
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("ids", ids.ToArray());
+        
+        if (types is { Length: > 0 })
+        {
+            cmd.Parameters.AddWithValue("types", types.Select(t => t.ToDbString()).ToArray());
+        }
+        
+        var relationships = new List<MemoryRelationship>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            relationships.Add(MapRelationship(reader));
+        }
+        
+        return relationships;
+    }
+    
+    public async Task<IReadOnlyList<Guid>> GetRelatedPageIdsAsync(
+        IEnumerable<Guid> sourcePageIds,
+        RelationshipType[]? types = null,
+        int maxPerSource = 3,
+        CancellationToken ct = default)
+    {
+        var ids = sourcePageIds.ToList();
+        if (ids.Count == 0) return [];
+        
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        
+        // Use window function to limit results per source
+        var sql = """
+            WITH ranked AS (
+                SELECT target_page_id,
+                       ROW_NUMBER() OVER (PARTITION BY source_page_id ORDER BY confidence DESC) as rn
+                FROM memory_relationships
+                WHERE source_page_id = ANY(@ids)
+            """;
+        
+        if (types is { Length: > 0 })
+        {
+            sql += " AND relationship_type = ANY(@types)";
+        }
+        
+        sql += $"""
+            )
+            SELECT DISTINCT target_page_id FROM ranked WHERE rn <= {maxPerSource}
+            """;
+        
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("ids", ids.ToArray());
+        
+        if (types is { Length: > 0 })
+        {
+            cmd.Parameters.AddWithValue("types", types.Select(t => t.ToDbString()).ToArray());
+        }
+        
+        var relatedIds = new List<Guid>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            relatedIds.Add(reader.GetGuid(0));
+        }
+        
+        return relatedIds;
+    }
+    
+    private static void AddRelationshipParams(NpgsqlCommand cmd, MemoryRelationship rel)
+    {
+        cmd.Parameters.AddWithValue("id", rel.Id);
+        cmd.Parameters.AddWithValue("source_page_id", rel.SourcePageId);
+        cmd.Parameters.AddWithValue("target_page_id", rel.TargetPageId);
+        cmd.Parameters.AddWithValue("relationship_type", rel.Type.ToDbString());
+        cmd.Parameters.AddWithValue("confidence", rel.Confidence);
+        cmd.Parameters.AddWithValue("created_by", rel.CreatedBy.ToDbString());
+        cmd.Parameters.AddWithValue("created_at", rel.CreatedAt.UtcDateTime);
+    }
+    
+    private static MemoryRelationship MapRelationship(NpgsqlDataReader reader) => new()
+    {
+        Id = reader.GetGuid(0),
+        SourcePageId = reader.GetGuid(1),
+        TargetPageId = reader.GetGuid(2),
+        Type = RelationshipTypeExtensions.ParseRelationshipType(reader.GetString(3)),
+        Confidence = reader.GetFloat(4),
+        CreatedBy = RelationshipTypeExtensions.ParseCreator(reader.GetString(5)),
+        CreatedAt = reader.GetDateTime(6)
+    };
 }

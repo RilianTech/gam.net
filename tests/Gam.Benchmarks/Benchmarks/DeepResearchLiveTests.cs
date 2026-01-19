@@ -278,6 +278,18 @@ public class DeepResearchLiveTests : IAsyncLifetime
                 tags TEXT[] DEFAULT '{}'
             );
 
+            -- ADR-0002 Phase 4: Memory relationships
+            CREATE TABLE IF NOT EXISTS memory_relationships (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                source_page_id UUID NOT NULL REFERENCES memory_pages(id) ON DELETE CASCADE,
+                target_page_id UUID NOT NULL REFERENCES memory_pages(id) ON DELETE CASCADE,
+                relationship_type VARCHAR(50) NOT NULL,
+                confidence FLOAT DEFAULT 1.0,
+                created_by VARCHAR(20) DEFAULT 'system',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(source_page_id, target_page_id, relationship_type)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_pages_owner ON memory_pages(owner_id);
             CREATE INDEX IF NOT EXISTS idx_pages_created ON memory_pages(created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_abstracts_owner ON memory_abstracts(owner_id);
@@ -287,6 +299,10 @@ public class DeepResearchLiveTests : IAsyncLifetime
             CREATE INDEX IF NOT EXISTS idx_pages_importance ON memory_pages(owner_id, importance DESC);
             CREATE INDEX IF NOT EXISTS idx_abstracts_type ON memory_abstracts(owner_id, memory_type);
             CREATE INDEX IF NOT EXISTS idx_abstracts_tags ON memory_abstracts USING GIN(tags);
+            -- ADR-0002 Phase 4: relationship indexes
+            CREATE INDEX IF NOT EXISTS idx_rel_source ON memory_relationships(source_page_id);
+            CREATE INDEX IF NOT EXISTS idx_rel_target ON memory_relationships(target_page_id);
+            CREATE INDEX IF NOT EXISTS idx_rel_type ON memory_relationships(relationship_type);
             """;
 
         await using var cmdTables = new NpgsqlCommand(createTables, conn);

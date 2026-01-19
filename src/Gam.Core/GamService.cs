@@ -1,28 +1,33 @@
 using Gam.Core.Abstractions;
 using Gam.Core.Models;
+using Gam.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Gam.Core;
 
 /// <summary>
 /// Default implementation of IGamService.
+/// Enhanced with ADR-0002 relationship creation during memorization.
 /// </summary>
 public class GamService : IGamService
 {
     private readonly IMemoryAgent _memoryAgent;
     private readonly IResearchAgent _researchAgent;
     private readonly IMemoryStore _store;
+    private readonly RelationshipService? _relationshipService;
     private readonly ILogger<GamService> _logger;
 
     public GamService(
         IMemoryAgent memoryAgent,
         IResearchAgent researchAgent,
         IMemoryStore store,
-        ILogger<GamService> logger)
+        ILogger<GamService> logger,
+        RelationshipService? relationshipService = null)
     {
         _memoryAgent = memoryAgent;
         _researchAgent = researchAgent;
         _store = store;
+        _relationshipService = relationshipService;
         _logger = logger;
     }
 
@@ -47,6 +52,25 @@ public class GamService : IGamService
         
         _logger.LogInformation("Stored memory page {PageId} for {OwnerId} (type={Type}, importance={Importance:F2})", 
             page.Id, request.Turn.OwnerId, abstractData.Type, page.Importance);
+        
+        // === ADR-0002: Create tag-based relationships ===
+        if (_relationshipService != null && abstractData.Tags.Count > 0)
+        {
+            try
+            {
+                await _relationshipService.CreateTagBasedRelationshipsAsync(
+                    abstractData, 
+                    request.Turn.OwnerId, 
+                    minOverlap: 2,
+                    minConfidence: 0.3f,
+                    ct);
+            }
+            catch (Exception ex)
+            {
+                // Don't fail memorization if relationship creation fails
+                _logger.LogWarning(ex, "Failed to create relationships for page {PageId}", page.Id);
+            }
+        }
     }
 
     public async Task<MemoryContext> ResearchAsync(ResearchRequest request, CancellationToken ct = default)

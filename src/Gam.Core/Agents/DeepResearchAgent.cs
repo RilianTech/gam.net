@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Gam.Core.Abstractions;
 using Gam.Core.Models;
 using Gam.Core.Prompts;
+using Gam.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Gam.Core.Agents;
@@ -12,6 +13,7 @@ namespace Gam.Core.Agents;
 /// Plan (multi-query) → Search (all queries) → Integrate (LLM synthesis) → Reflect (two-step)
 /// 
 /// This is the core innovation of GAM - intensive memory research at runtime.
+/// Enhanced with ADR-0002 relationship-aware retrieval.
 /// </summary>
 public class DeepResearchAgent : IResearchAgent
 {
@@ -21,6 +23,7 @@ public class DeepResearchAgent : IResearchAgent
     private readonly IVectorRetriever _vectorRetriever;
     private readonly IPageIndexRetriever _pageIndexRetriever;
     private readonly IMemoryStore _store;
+    private readonly RelationshipService? _relationshipService;
     private readonly ILogger<DeepResearchAgent> _logger;
     private readonly DeepResearchOptions _options;
 
@@ -32,7 +35,8 @@ public class DeepResearchAgent : IResearchAgent
         IPageIndexRetriever pageIndexRetriever,
         IMemoryStore store,
         ILogger<DeepResearchAgent> logger,
-        DeepResearchOptions? options = null)
+        DeepResearchOptions? options = null,
+        RelationshipService? relationshipService = null)
     {
         _llm = llm;
         _embedding = embedding;
@@ -40,6 +44,7 @@ public class DeepResearchAgent : IResearchAgent
         _vectorRetriever = vectorRetriever;
         _pageIndexRetriever = pageIndexRetriever;
         _store = store;
+        _relationshipService = relationshipService;
         _logger = logger;
         _options = options ?? new DeepResearchOptions();
     }
@@ -259,11 +264,49 @@ public class DeepResearchAgent : IResearchAgent
             }
         }
 
-        return scoreByPage.Values
+        var directResults = scoreByPage.Values
             .OrderByDescending(x => x.Score)
             .Take(_options.MaxHitsPerIteration)
             .Select(x => x.Result)
             .ToList();
+        
+        // === ADR-0002 Phase 5: Expand with related pages ===
+        if (_options.EnableRelationshipExpansion && _relationshipService != null && directResults.Count > 0)
+        {
+            var directPageIds = directResults.Select(r => r.PageId).ToList();
+            var relatedPageIds = await _relationshipService.ExpandWithRelatedAsync(
+                directPageIds,
+                _options.ExpansionRelationshipTypes,
+                _options.MaxRelatedPerSource,
+                ct);
+            
+            if (relatedPageIds.Count > 0)
+            {
+                // Filter out already retrieved pages and load the related ones
+                var newRelatedIds = relatedPageIds
+                    .Except(ctx.RetrievedPageIds)
+                    .Except(directPageIds)
+                    .ToList();
+                
+                if (newRelatedIds.Count > 0)
+                {
+                    // Create synthetic results for related pages with slightly lower score
+                    var relatedResults = newRelatedIds.Select(id => new RetrievalResult
+                    {
+                        PageId = id,
+                        Score = 0.7f, // Slightly lower than direct hits
+                        RetrieverName = "relationship",
+                        MatchedSnippet = "Related via memory relationship"
+                    }).ToList();
+                    
+                    _logger.LogDebug("Expanded search with {Count} related pages", relatedResults.Count);
+                    
+                    return directResults.Concat(relatedResults).ToList();
+                }
+            }
+        }
+        
+        return directResults;
     }
 
     private async Task<IReadOnlyList<RetrievalResult>> ExecuteKeywordQueryAsync(

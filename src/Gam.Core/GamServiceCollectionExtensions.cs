@@ -31,10 +31,12 @@ public static class GamServiceCollectionExtensions
     /// <summary>
     /// Add GAM core services with Deep Research enabled (ADR-1).
     /// This is the full GAM implementation with Plan→Search→Integrate→Reflect loop.
+    /// Enhanced with ADR-0002 relationship support.
     /// </summary>
     public static IServiceCollection AddGamCoreWithDeepResearch(
         this IServiceCollection services,
-        Action<DeepResearchOptions>? configureOptions = null)
+        Action<DeepResearchOptions>? configureOptions = null,
+        bool enableRelationships = true)
     {
         var options = new DeepResearchOptions();
         configureOptions?.Invoke(options);
@@ -42,8 +44,30 @@ public static class GamServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton<IPromptProvider, DefaultPromptProvider>();
         services.AddSingleton<IMemoryAgent, MemoryAgent>();
+        
+        // ADR-0002: Add relationship service for tag-based relationships
+        if (enableRelationships)
+        {
+            services.AddSingleton<RelationshipService>();
+        }
+        
         services.AddSingleton<IResearchAgent, DeepResearchAgent>();
         services.AddSingleton<IGamService, GamService>();
+        return services;
+    }
+    
+    /// <summary>
+    /// Add the relationship background service for automatic relationship discovery.
+    /// </summary>
+    public static IServiceCollection AddGamRelationshipBackgroundService(
+        this IServiceCollection services,
+        Action<RelationshipBackgroundOptions>? configure = null)
+    {
+        if (configure != null)
+        {
+            services.Configure(configure);
+        }
+        services.AddHostedService<RelationshipBackgroundService>();
         return services;
     }
 

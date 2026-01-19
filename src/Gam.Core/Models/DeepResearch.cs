@@ -149,4 +149,16 @@ public class DeepResearchOptions
     
     /// <summary>Minimum relevance score to include a result.</summary>
     public float MinRelevanceScore { get; set; } = 0.3f;
+    
+    // === ADR-0002 Phase 5: Relationship-aware retrieval ===
+    
+    /// <summary>Enable expansion of search results with related memories.</summary>
+    public bool EnableRelationshipExpansion { get; set; } = true;
+    
+    /// <summary>Maximum related pages to add per source page during expansion.</summary>
+    public int MaxRelatedPerSource { get; set; } = 2;
+    
+    /// <summary>Relationship types to use for expansion.</summary>
+    public RelationshipType[] ExpansionRelationshipTypes { get; set; } = 
+        [RelationshipType.RelatesTo, RelationshipType.Reinforces];
 }
