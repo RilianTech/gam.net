@@ -523,4 +523,95 @@ public class PostgresMemoryStore : IMemoryStore
         CreatedBy = RelationshipTypeExtensions.ParseCreator(reader.GetString(5)),
         CreatedAt = reader.GetDateTime(6)
     };
+    
+    // ========================================================================
+    // Relationship discovery methods (for background service)
+    // ========================================================================
+    
+    public async Task<IReadOnlyList<(Guid PageId1, Guid PageId2, float Similarity)>> FindSimilarPairsAsync(
+        string ownerId,
+        float minSimilarity = 0.8f,
+        int limit = 100,
+        CancellationToken ct = default)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        
+        // Find pairs with high cosine similarity that don't already have SIMILAR_TO relationships
+        // Using: 1 - (embedding <=> embedding) = cosine similarity
+        await using var cmd = new NpgsqlCommand("""
+            SELECT p1.id, p2.id, 1 - (p1.embedding <=> p2.embedding) as similarity
+            FROM memory_pages p1
+            JOIN memory_pages p2 ON p1.owner_id = p2.owner_id 
+                                 AND p1.id < p2.id  -- avoid duplicates and self-joins
+            WHERE p1.owner_id = @owner_id
+              AND p1.embedding IS NOT NULL
+              AND p2.embedding IS NOT NULL
+              AND 1 - (p1.embedding <=> p2.embedding) >= @min_similarity
+              AND NOT EXISTS (
+                  SELECT 1 FROM memory_relationships r
+                  WHERE r.source_page_id = p1.id 
+                    AND r.target_page_id = p2.id 
+                    AND r.relationship_type = 'SIMILAR_TO'
+              )
+            ORDER BY similarity DESC
+            LIMIT @limit
+            """, conn);
+        
+        cmd.Parameters.AddWithValue("owner_id", ownerId);
+        cmd.Parameters.AddWithValue("min_similarity", minSimilarity);
+        cmd.Parameters.AddWithValue("limit", limit);
+        
+        var pairs = new List<(Guid, Guid, float)>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            pairs.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetFloat(2)));
+        }
+        
+        return pairs;
+    }
+    
+    public async Task<IReadOnlyList<(Guid PageId, DateTimeOffset CreatedAt)>> GetRecentPagesAsync(
+        string ownerId,
+        int limit = 10,
+        CancellationToken ct = default)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT id, created_at
+            FROM memory_pages
+            WHERE owner_id = @owner_id
+            ORDER BY created_at DESC
+            LIMIT @limit
+            """, conn);
+        
+        cmd.Parameters.AddWithValue("owner_id", ownerId);
+        cmd.Parameters.AddWithValue("limit", limit);
+        
+        var pages = new List<(Guid, DateTimeOffset)>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            pages.Add((reader.GetGuid(0), reader.GetDateTime(1)));
+        }
+        
+        return pages;
+    }
+    
+    public async Task<IReadOnlyList<string>> GetAllOwnerIdsAsync(CancellationToken ct = default)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT DISTINCT owner_id FROM memory_pages
+            """, conn);
+        
+        var ownerIds = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            ownerIds.Add(reader.GetString(0));
+        }
+        
+        return ownerIds;
+    }
 }

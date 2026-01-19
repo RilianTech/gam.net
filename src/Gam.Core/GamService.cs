@@ -53,16 +53,27 @@ public class GamService : IGamService
         _logger.LogInformation("Stored memory page {PageId} for {OwnerId} (type={Type}, importance={Importance:F2})", 
             page.Id, request.Turn.OwnerId, abstractData.Type, page.Importance);
         
-        // === ADR-0002: Create tag-based relationships ===
-        if (_relationshipService != null && abstractData.Tags.Count > 0)
+        // === ADR-0002: Create relationships ===
+        if (_relationshipService != null)
         {
             try
             {
-                await _relationshipService.CreateTagBasedRelationshipsAsync(
-                    abstractData, 
-                    request.Turn.OwnerId, 
-                    minOverlap: 2,
-                    minConfidence: 0.3f,
+                // Create tag-based relationships (RELATES_TO)
+                if (abstractData.Tags.Count > 0)
+                {
+                    await _relationshipService.CreateTagBasedRelationshipsAsync(
+                        abstractData, 
+                        request.Turn.OwnerId, 
+                        minOverlap: 2,
+                        minConfidence: 0.3f,
+                        ct);
+                }
+                
+                // Create temporal relationships (PRECEDED_BY)
+                await _relationshipService.CreateTemporalRelationshipsAsync(
+                    page.Id,
+                    request.Turn.OwnerId,
+                    maxPrecedingMemories: 3,
                     ct);
             }
             catch (Exception ex)

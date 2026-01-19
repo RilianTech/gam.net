@@ -7,8 +7,13 @@ using Microsoft.Extensions.Options;
 namespace Gam.Core.Services;
 
 /// <summary>
-/// Background service that periodically creates RELATES_TO relationships
-/// based on tag/entity overlap between memories.
+/// Background service that periodically discovers and creates relationships
+/// between memories based on semantic similarity and other patterns.
+/// 
+/// Relationship types created:
+/// - SIMILAR_TO: High embedding cosine similarity (≥0.8)
+/// - RELATES_TO: Tag/entity overlap (created during memorization, not here)
+/// - PRECEDED_BY: Temporal proximity (created during memorization, not here)
 /// </summary>
 public class RelationshipBackgroundService : BackgroundService
 {
@@ -37,7 +42,10 @@ public class RelationshipBackgroundService : BackgroundService
             return;
         }
 
-        _logger.LogInformation("Relationship background service started, interval: {Interval}", _options.Interval);
+        _logger.LogInformation(
+            "Relationship background service started (interval: {Interval}, similarity threshold: {Threshold})", 
+            _options.Interval, 
+            _options.MinSemanticSimilarity);
 
         // Initial delay to let the application start up
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
@@ -66,18 +74,49 @@ public class RelationshipBackgroundService : BackgroundService
     private async Task ProcessRelationshipsAsync(CancellationToken ct)
     {
         _logger.LogDebug("Running relationship discovery...");
+        var totalRelationships = 0;
 
-        // This is a simplified implementation that processes all owners
-        // In production, you'd want to track which memories have been processed
-        // and only process new ones, possibly using a queue
+        try
+        {
+            // Get all owners
+            var ownerIds = await _store.GetAllOwnerIdsAsync(ct);
+            _logger.LogDebug("Processing {OwnerCount} owners for relationship discovery", ownerIds.Count);
 
-        // For now, we rely on the ON CONFLICT DO NOTHING to handle duplicates
-        // A more sophisticated implementation would:
-        // 1. Track last processed timestamp per owner
-        // 2. Only process memories created since last run
-        // 3. Use a distributed lock if running multiple instances
+            foreach (var ownerId in ownerIds)
+            {
+                if (ct.IsCancellationRequested) break;
 
-        _logger.LogDebug("Relationship discovery complete");
+                try
+                {
+                    // Discover semantic similarity relationships
+                    var created = await _relationshipService.CreateSemanticRelationshipsAsync(
+                        ownerId,
+                        _options.MinSemanticSimilarity,
+                        _options.BatchSize,
+                        ct);
+                    
+                    totalRelationships += created;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to process relationships for owner {OwnerId}", ownerId);
+                }
+            }
+
+            if (totalRelationships > 0)
+            {
+                _logger.LogInformation("Relationship discovery complete: created {Count} new relationships", 
+                    totalRelationships);
+            }
+            else
+            {
+                _logger.LogDebug("Relationship discovery complete: no new relationships found");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to complete relationship discovery");
+        }
     }
 }
 
@@ -92,9 +131,12 @@ public class RelationshipBackgroundOptions
     /// <summary>Interval between relationship discovery runs.</summary>
     public TimeSpan Interval { get; set; } = TimeSpan.FromMinutes(5);
 
-    /// <summary>Minimum tag overlap to create a RELATES_TO relationship.</summary>
-    public int MinTagOverlap { get; set; } = 2;
+    /// <summary>Minimum cosine similarity for SIMILAR_TO relationships.</summary>
+    public float MinSemanticSimilarity { get; set; } = 0.8f;
 
-    /// <summary>Minimum confidence (Jaccard similarity) for relationships.</summary>
-    public float MinConfidence { get; set; } = 0.3f;
+    /// <summary>Maximum pairs to process per owner per run.</summary>
+    public int BatchSize { get; set; } = 100;
+    
+    /// <summary>Minimum tag overlap to create a RELATES_TO relationship (used during memorization).</summary>
+    public int MinTagOverlap { get; set; } = 2;
 }

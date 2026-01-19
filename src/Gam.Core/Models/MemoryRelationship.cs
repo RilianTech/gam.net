@@ -55,7 +55,19 @@ public enum RelationshipType
     /// Supporting evidence - one memory reinforces another.
     /// Detected by LLM during research integration.
     /// </summary>
-    Reinforces
+    Reinforces,
+    
+    /// <summary>
+    /// Semantically similar memories (high embedding cosine similarity).
+    /// Created by background job based on vector similarity ≥0.8.
+    /// </summary>
+    SimilarTo,
+    
+    /// <summary>
+    /// Temporal proximity - this memory came before another.
+    /// Created during memorization to link recent memories.
+    /// </summary>
+    PrecededBy
 }
 
 /// <summary>
@@ -85,6 +97,8 @@ public static class RelationshipTypeExtensions
         RelationshipType.Follows => "FOLLOWS",
         RelationshipType.Contradicts => "CONTRADICTS",
         RelationshipType.Reinforces => "REINFORCES",
+        RelationshipType.SimilarTo => "SIMILAR_TO",
+        RelationshipType.PrecededBy => "PRECEDED_BY",
         _ => "RELATES_TO"
     };
     
@@ -95,6 +109,8 @@ public static class RelationshipTypeExtensions
         "FOLLOWS" => RelationshipType.Follows,
         "CONTRADICTS" => RelationshipType.Contradicts,
         "REINFORCES" => RelationshipType.Reinforces,
+        "SIMILAR_TO" => RelationshipType.SimilarTo,
+        "PRECEDED_BY" => RelationshipType.PrecededBy,
         _ => RelationshipType.RelatesTo
     };
     

@@ -80,6 +80,35 @@ public interface IMemoryStore
         RelationshipType[]? types = null,
         int maxPerSource = 3,
         CancellationToken ct = default);
+    
+    // Relationship discovery methods (for background service)
+    
+    /// <summary>
+    /// Find pairs of memories with high embedding similarity that don't already have SIMILAR_TO relationships.
+    /// </summary>
+    /// <param name="ownerId">Owner to search within</param>
+    /// <param name="minSimilarity">Minimum cosine similarity threshold (0.0-1.0)</param>
+    /// <param name="limit">Maximum pairs to return</param>
+    Task<IReadOnlyList<(Guid PageId1, Guid PageId2, float Similarity)>> FindSimilarPairsAsync(
+        string ownerId,
+        float minSimilarity = 0.8f,
+        int limit = 100,
+        CancellationToken ct = default);
+    
+    /// <summary>
+    /// Get recent memories for an owner, ordered by creation time descending.
+    /// Used for temporal relationship creation.
+    /// </summary>
+    Task<IReadOnlyList<(Guid PageId, DateTimeOffset CreatedAt)>> GetRecentPagesAsync(
+        string ownerId,
+        int limit = 10,
+        CancellationToken ct = default);
+    
+    /// <summary>
+    /// Get all unique owner IDs in the store.
+    /// Used by background service to process all owners.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetAllOwnerIdsAsync(CancellationToken ct = default);
 }
 
 /// <summary>

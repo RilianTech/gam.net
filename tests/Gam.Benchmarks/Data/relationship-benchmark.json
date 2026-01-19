@@ -1,0 +1,157 @@
+{
+  "name": "GAM Relationship Benchmark",
+  "version": "1.0.0",
+  "metadata": {
+    "description": "Benchmark dataset designed to test memory relationships - conversations with overlapping entities and topics",
+    "source": "Synthetic - designed for ADR-0002 relationship testing",
+    "createdAt": "2025-01-19T00:00:00Z"
+  },
+  "conversations": [
+    {
+      "id": "conv-pg-001",
+      "metadata": { "topic": "PostgreSQL Setup", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "We need to set up PostgreSQL for the auth service. What configuration should we use?" },
+        { "role": "assistant", "content": "For the auth service PostgreSQL setup, I recommend:\n\n**Configuration**:\n- PostgreSQL 16 for latest features\n- Connection pooling via PgBouncer (max 100 connections)\n- Primary-replica setup for high availability\n- Daily automated backups to S3\n\n**Schema Design**:\n- users table with bcrypt hashed passwords\n- roles table with RBAC support\n- sessions table with TTL index\n- audit_log for compliance\n\nJohn has set up PostgreSQL clusters before at his previous company. He can help with the initial configuration." }
+      ]
+    },
+    {
+      "id": "conv-pg-002",
+      "metadata": { "topic": "PostgreSQL Performance", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "The auth service PostgreSQL queries are slow. What's happening?" },
+        { "role": "assistant", "content": "I analyzed the PostgreSQL slow query log and found several issues:\n\n**Problems Found**:\n1. Missing index on users.email - full table scans on login\n2. N+1 queries when loading user roles\n3. No connection pooling - opening new connections each request\n\n**Fixes Applied**:\n- Added btree index on users.email\n- Rewrote role query to use JOIN instead of subquery\n- Configured PgBouncer with pool_mode=transaction\n\n**Results**:\n- Login query: 450ms → 12ms\n- Role check: 200ms → 8ms\n- P95 latency: 800ms → 45ms\n\nJohn reviewed the changes and suggested we also add partial indexes for soft-deleted records." }
+      ]
+    },
+    {
+      "id": "conv-pg-003",
+      "metadata": { "topic": "PostgreSQL Migration", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "We need to migrate the user data from the old MySQL database to PostgreSQL. How should we approach this?" },
+        { "role": "assistant", "content": "Here's the migration plan from MySQL to PostgreSQL:\n\n**Phase 1 - Preparation**:\n- Set up pgloader for automated schema conversion\n- Create mapping for MySQL-specific types (ENUM → PostgreSQL ENUM)\n- Test migration in staging environment\n\n**Phase 2 - Data Migration**:\n- Use dual-write pattern during transition\n- Migrate 2M user records in batches of 10k\n- Verify data integrity with checksums\n\n**Phase 3 - Cutover**:\n- Feature flag to switch reads to PostgreSQL\n- Monitor error rates for 24 hours\n- Deprecate MySQL connection after 1 week\n\n**Team**: John will lead the PostgreSQL side, Sarah will handle the application changes for dual-write support.\n\nEstimated timeline: 2 weeks for migration, 1 week for verification." }
+      ]
+    },
+    {
+      "id": "conv-kafka-001",
+      "metadata": { "topic": "Kafka Setup", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "Let's set up Kafka for our event-driven architecture. What do we need?" },
+        { "role": "assistant", "content": "Here's the Kafka infrastructure plan:\n\n**Cluster Setup**:\n- 3-node Kafka cluster for fault tolerance\n- Zookeeper ensemble (will migrate to KRaft later)\n- Schema Registry for Avro schemas\n- Kafka Connect for database CDC\n\n**Topics Design**:\n- user.events (user registration, login, profile updates)\n- order.events (created, paid, shipped, delivered)\n- notification.commands (email, push, SMS triggers)\n\n**Configuration**:\n- Replication factor: 3\n- Min ISR: 2\n- Retention: 7 days for events, 30 days for audit\n\nJohn has production Kafka experience and will be the technical lead. He'll also set up monitoring with Prometheus and Grafana dashboards." }
+      ]
+    },
+    {
+      "id": "conv-kafka-002",
+      "metadata": { "topic": "Kafka Consumer Issues", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "Our Kafka consumers are lagging behind. What's wrong?" },
+        { "role": "assistant", "content": "Investigated the Kafka consumer lag issue:\n\n**Root Cause**:\n- Single consumer per topic, not utilizing partitions\n- Synchronous processing blocking the poll loop\n- Default batch size too small (500 → should be 10000)\n\n**Fixes**:\n1. Increased consumer group to 6 instances (matching partition count)\n2. Switched to async processing with bounded queue\n3. Increased batch.size and linger.ms for better throughput\n\n**Results**:\n- Consumer lag: 2M messages → 0 (caught up in 30 min)\n- Throughput: 1k/sec → 15k/sec\n- CPU usage: 90% → 35%\n\nJohn implemented the consumer pool pattern he used at his previous job. Sarah helped with the async processing code in TypeScript for the notification service." }
+      ]
+    },
+    {
+      "id": "conv-team-001",
+      "metadata": { "topic": "Team Skills", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "What are each team member's specialties? I want to assign the right people to projects." },
+        { "role": "assistant", "content": "Here's the team expertise breakdown:\n\n**John** - Backend & Infrastructure:\n- PostgreSQL expert (5 years production experience)\n- Kafka specialist (built event-driven systems at previous company)\n- Go and Python for backend services\n- Kubernetes and Terraform for infrastructure\n\n**Sarah** - Frontend & Full-Stack:\n- TypeScript champion (advocates for type safety)\n- React and Next.js expert\n- GraphQL experience with Apollo\n- Good understanding of backend concepts\n\n**Marcus** - API & Integration:\n- GraphQL expert (wrote company's API guidelines)\n- REST API design specialist\n- Experience with gRPC for internal services\n- Good at system integration patterns\n\n**Alice** - Data & DevOps:\n- Kafka experience (worked with John previously)\n- Data pipeline specialist (Spark, Airflow)\n- CI/CD automation expert\n- Prometheus/Grafana monitoring" }
+      ]
+    },
+    {
+      "id": "conv-project-001",
+      "metadata": { "topic": "Project Assignment", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "We have several projects coming up. How should we staff them?" },
+        { "role": "assistant", "content": "Based on team expertise, here's my staffing recommendation:\n\n**Auth Service Rewrite** (PostgreSQL migration):\n- Lead: John (PostgreSQL expert)\n- Support: Sarah (application changes)\n- Timeline: 3 weeks\n\n**Event System** (Kafka implementation):\n- Lead: John (Kafka specialist)\n- Support: Alice (has Kafka experience, data pipelines)\n- Timeline: 4 weeks\n\n**API Gateway** (GraphQL BFF):\n- Lead: Marcus (GraphQL expert)\n- Support: Sarah (TypeScript, frontend integration)\n- Timeline: 4 weeks\n\n**Notification Service** (async processing):\n- Lead: Sarah (TypeScript, async patterns)\n- Support: John (Kafka integration)\n- Timeline: 2 weeks\n\nThis assignment leverages everyone's strengths while providing cross-training opportunities." }
+      ]
+    },
+    {
+      "id": "conv-graphql-001",
+      "metadata": { "topic": "GraphQL Implementation", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "Marcus is starting the GraphQL API. What approach should we take?" },
+        { "role": "assistant", "content": "Marcus's GraphQL implementation plan:\n\n**Architecture**:\n- Apollo Server as the GraphQL gateway\n- Schema-first design with SDL\n- DataLoader for batching and caching\n- Federation-ready for future microservices\n\n**Schema Design**:\n```graphql\ntype User {\n  id: ID!\n  email: String!\n  roles: [Role!]!\n  orders: [Order!]!\n}\n```\n\n**Data Sources**:\n- PostgreSQL via Prisma for users/auth\n- Kafka for real-time subscriptions\n- REST APIs for legacy services\n\n**Performance**:\n- Query complexity limits\n- Depth limiting (max 5 levels)\n- Persisted queries for production\n\nSarah will help integrate the frontend with Apollo Client. They've worked together on GraphQL projects before and have a good workflow." }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "rq-001",
+      "query": "What PostgreSQL issues have we had and how were they resolved?",
+      "expectedAnswer": "Slow queries fixed with indexes and PgBouncer",
+      "requiredFacts": ["PostgreSQL", "slow queries", "index", "PgBouncer", "login query", "12ms"],
+      "relevantConversationIds": ["conv-pg-001", "conv-pg-002"],
+      "category": "relationship-test",
+      "difficulty": "medium",
+      "notes": "Tests RELATES_TO between PostgreSQL conversations"
+    },
+    {
+      "id": "rq-002",
+      "query": "What is John's expertise and what projects is he leading?",
+      "expectedAnswer": "PostgreSQL and Kafka expert, leading auth service and event system",
+      "requiredFacts": ["John", "PostgreSQL", "Kafka", "auth service", "event system"],
+      "relevantConversationIds": ["conv-team-001", "conv-project-001", "conv-pg-001", "conv-kafka-001"],
+      "category": "relationship-test",
+      "difficulty": "hard",
+      "notes": "Tests relationship expansion - John mentioned in 4+ conversations"
+    },
+    {
+      "id": "rq-003",
+      "query": "How do PostgreSQL and Kafka work together in our system?",
+      "expectedAnswer": "PostgreSQL stores data, Kafka Connect does CDC, events flow through Kafka",
+      "requiredFacts": ["PostgreSQL", "Kafka", "Kafka Connect", "CDC", "user.events"],
+      "relevantConversationIds": ["conv-pg-001", "conv-kafka-001", "conv-graphql-001"],
+      "category": "relationship-test",
+      "difficulty": "hard",
+      "notes": "Tests finding connections between different technology conversations"
+    },
+    {
+      "id": "rq-004",
+      "query": "Who has worked with Kafka and what did they build?",
+      "expectedAnswer": "John and Alice, consumer optimization and event system",
+      "requiredFacts": ["John", "Alice", "Kafka", "consumer", "event-driven"],
+      "relevantConversationIds": ["conv-kafka-001", "conv-kafka-002", "conv-team-001"],
+      "category": "relationship-test",
+      "difficulty": "medium",
+      "notes": "Tests Kafka-related relationships"
+    },
+    {
+      "id": "rq-005",
+      "query": "What's the full story of our PostgreSQL journey from setup to optimization?",
+      "expectedAnswer": "Setup with John, slow queries found, indexes added, migration from MySQL",
+      "requiredFacts": ["PostgreSQL", "John", "PgBouncer", "index", "MySQL", "migration", "dual-write"],
+      "relevantConversationIds": ["conv-pg-001", "conv-pg-002", "conv-pg-003"],
+      "category": "relationship-test",
+      "difficulty": "hard",
+      "notes": "Tests temporal relationships between related PostgreSQL conversations"
+    },
+    {
+      "id": "rq-006",
+      "query": "How are Sarah and Marcus collaborating on projects?",
+      "expectedAnswer": "GraphQL API together, Sarah on frontend with Apollo Client, Marcus leads backend",
+      "requiredFacts": ["Sarah", "Marcus", "GraphQL", "Apollo", "TypeScript", "frontend"],
+      "relevantConversationIds": ["conv-team-001", "conv-graphql-001", "conv-project-001"],
+      "category": "relationship-test",
+      "difficulty": "medium",
+      "notes": "Tests person-based relationships"
+    },
+    {
+      "id": "rq-007",
+      "query": "What technologies require special expertise on our team?",
+      "expectedAnswer": "PostgreSQL (John), Kafka (John, Alice), GraphQL (Marcus), TypeScript (Sarah)",
+      "requiredFacts": ["PostgreSQL", "Kafka", "GraphQL", "TypeScript", "John", "Sarah", "Marcus", "Alice"],
+      "relevantConversationIds": ["conv-team-001"],
+      "category": "synthesis",
+      "difficulty": "easy",
+      "notes": "Baseline - single conversation"
+    },
+    {
+      "id": "rq-008",
+      "query": "What monitoring and observability do we have for PostgreSQL and Kafka?",
+      "expectedAnswer": "Prometheus and Grafana dashboards, slow query logs",
+      "requiredFacts": ["Prometheus", "Grafana", "monitoring", "slow query"],
+      "relevantConversationIds": ["conv-pg-002", "conv-kafka-001"],
+      "category": "relationship-test",
+      "difficulty": "medium",
+      "notes": "Tests finding monitoring mentions across technology conversations"
+    }
+  ]
+}
