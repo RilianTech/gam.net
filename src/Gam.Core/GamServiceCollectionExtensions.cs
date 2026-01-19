@@ -1,6 +1,7 @@
 using Gam.Core.Abstractions;
 using Gam.Core.Agents;
 using Gam.Core.Configuration;
+using Gam.Core.Models;
 using Gam.Core.Prompts;
 using Gam.Core.Services;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,7 @@ public static class GamServiceCollectionExtensions
 {
     /// <summary>
     /// Add GAM core services to the service collection.
+    /// Uses simple research by default. Call AddGamDeepResearch() for the full GAM research loop.
     /// Requires ILlmProvider, IEmbeddingProvider, IMemoryStore, and retrievers to be registered.
     /// </summary>
     public static IServiceCollection AddGamCore(this IServiceCollection services)
@@ -22,6 +24,25 @@ public static class GamServiceCollectionExtensions
         services.AddSingleton<IPromptProvider, DefaultPromptProvider>();
         services.AddSingleton<IMemoryAgent, MemoryAgent>();
         services.AddSingleton<IResearchAgent, ResearchAgent>();
+        services.AddSingleton<IGamService, GamService>();
+        return services;
+    }
+
+    /// <summary>
+    /// Add GAM core services with Deep Research enabled (ADR-1).
+    /// This is the full GAM implementation with Plan→Search→Integrate→Reflect loop.
+    /// </summary>
+    public static IServiceCollection AddGamCoreWithDeepResearch(
+        this IServiceCollection services,
+        Action<DeepResearchOptions>? configureOptions = null)
+    {
+        var options = new DeepResearchOptions();
+        configureOptions?.Invoke(options);
+        
+        services.AddSingleton(options);
+        services.AddSingleton<IPromptProvider, DefaultPromptProvider>();
+        services.AddSingleton<IMemoryAgent, MemoryAgent>();
+        services.AddSingleton<IResearchAgent, DeepResearchAgent>();
         services.AddSingleton<IGamService, GamService>();
         return services;
     }
@@ -43,11 +64,29 @@ public static class GamServiceCollectionExtensions
         
         services.AddSingleton<IPromptProvider, DefaultPromptProvider>();
         services.AddSingleton<IMemoryAgent, MemoryAgent>();
-        services.AddSingleton<IResearchAgent, ResearchAgent>();
+        
+        // Check if Deep Research is enabled in config
+        var options = section.Get<GamOptions>();
+        if (options?.Research.UseDeepResearch == true)
+        {
+            var deepOptions = new DeepResearchOptions
+            {
+                MaxIterations = options.Research.MaxIterations,
+                MaxContextTokens = options.Research.MaxContextTokens,
+                MinRelevanceScore = options.Research.MinRelevanceScore,
+                MaxHitsPerIteration = options.Research.MaxPagesPerIteration
+            };
+            services.AddSingleton(deepOptions);
+            services.AddSingleton<IResearchAgent, DeepResearchAgent>();
+        }
+        else
+        {
+            services.AddSingleton<IResearchAgent, ResearchAgent>();
+        }
+        
         services.AddSingleton<IGamService, GamService>();
         
         // Configure TTL if enabled
-        var options = section.Get<GamOptions>();
         if (options?.Ttl.Enabled == true)
         {
             services.AddGamMemoryTtl(opts =>

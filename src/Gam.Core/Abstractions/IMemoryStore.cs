@@ -16,6 +16,11 @@ public interface IMemoryStore
     // Abstract operations  
     Task<MemoryAbstract?> GetAbstractAsync(Guid pageId, CancellationToken ct = default);
     Task<IReadOnlyList<MemoryAbstract>> GetAbstractsAsync(IEnumerable<Guid> pageIds, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Get all abstracts for an owner. Used by Deep Research to build memory index.
+    /// </summary>
+    Task<IReadOnlyList<MemoryAbstract>> GetAbstractsAsync(string ownerId, CancellationToken ct = default);
     Task StoreAbstractAsync(MemoryAbstract memoryAbstract, CancellationToken ct = default);
     
     // Bulk operations

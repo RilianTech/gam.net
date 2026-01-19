@@ -63,10 +63,22 @@ public class OllamaOptions
 /// </summary>
 public class ResearchSettings
 {
+    /// <summary>
+    /// Enable Deep Research (ADR-1) with Plan→Search→Integrate→Reflect loop.
+    /// When false, uses simple research with single-query planning.
+    /// </summary>
+    public bool UseDeepResearch { get; set; } = false;
+    
     public int MaxIterations { get; set; } = 5;
     public int MaxPagesPerIteration { get; set; } = 10;
     public int MaxContextTokens { get; set; } = 8000;
     public float MinRelevanceScore { get; set; } = 0.3f;
+    
+    /// <summary>Maximum keyword queries per planning iteration (Deep Research only).</summary>
+    public int MaxKeywordQueries { get; set; } = 5;
+    
+    /// <summary>Maximum vector queries per planning iteration (Deep Research only).</summary>
+    public int MaxVectorQueries { get; set; } = 5;
 }
 
 /// <summary>

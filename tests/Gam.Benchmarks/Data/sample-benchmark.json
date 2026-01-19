@@ -1,0 +1,133 @@
+{
+  "name": "GAM Sample Benchmark",
+  "version": "1.0.0",
+  "metadata": {
+    "description": "A small benchmark dataset for testing GAM Deep Research implementation",
+    "source": "Synthetic - inspired by LoCoMo format",
+    "createdAt": "2025-01-19T00:00:00Z"
+  },
+  "conversations": [
+    {
+      "id": "conv-001",
+      "metadata": { "topic": "Database Selection", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "We need to choose a database for our new auth service. What are our options?" },
+        { "role": "assistant", "content": "For the auth service, we have several options to consider:\n\n1. **PostgreSQL** - Great for ACID compliance, relational data, and we already have expertise\n2. **MongoDB** - Good for flexible schemas, but lacks strong transaction support\n3. **Redis** - Excellent for session storage, but not ideal as primary datastore\n\nGiven auth requires strong consistency and we need to store user credentials, roles, and permissions, I'd recommend PostgreSQL." },
+        { "role": "user", "content": "What about the ACID requirements specifically? We had issues with data consistency before." },
+        { "role": "assistant", "content": "You're right to be concerned about ACID. Let me explain why PostgreSQL is the best choice here:\n\n1. **Atomicity**: User registration involves multiple tables (users, roles, audit_logs). PostgreSQL ensures all-or-nothing commits.\n2. **Consistency**: Foreign key constraints prevent orphaned role assignments\n3. **Isolation**: Concurrent logins won't cause race conditions on session data\n4. **Durability**: WAL (Write-Ahead Logging) ensures no data loss on crashes\n\nMongoDB only added multi-document transactions in v4.0 and they're still limited. For auth, we can't afford eventual consistency - a user's permissions must be correct immediately after changes." }
+      ]
+    },
+    {
+      "id": "conv-002", 
+      "metadata": { "topic": "Team Preferences", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "Sarah mentioned she prefers working with TypeScript over JavaScript. Did she give reasons?" },
+        { "role": "assistant", "content": "Yes, Sarah explained her preference during last week's frontend planning meeting. Her main reasons were:\n\n1. **Type Safety**: Catches errors at compile time rather than runtime\n2. **Better IDE Support**: IntelliSense works much better with types\n3. **Refactoring Confidence**: Renaming a function shows all call sites that need updating\n4. **Documentation**: Types serve as inline documentation\n\nShe specifically mentioned that on the previous project, they had several production bugs that TypeScript would have caught. She's offered to lead a workshop for the team on TypeScript best practices." }
+      ]
+    },
+    {
+      "id": "conv-003",
+      "metadata": { "topic": "Project Architecture", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "For the new microservices architecture, what message broker should we use?" },
+        { "role": "assistant", "content": "For microservices communication, I recommend **Apache Kafka** over RabbitMQ for our use case. Here's why:\n\n1. **Event Sourcing**: We discussed wanting audit trails - Kafka's log-based storage is perfect\n2. **Scalability**: We're expecting 10x growth; Kafka handles high throughput better\n3. **Replay Capability**: If a service goes down, it can replay events to catch up\n4. **Team Experience**: John and Alice have production Kafka experience from their previous company\n\nRabbitMQ is simpler but doesn't scale as well and lacks the replay feature we need." },
+        { "role": "user", "content": "What about the learning curve for the rest of the team?" },
+        { "role": "assistant", "content": "Good point. The learning curve is manageable:\n\n1. **John will lead**: He's agreed to be the Kafka champion and help others\n2. **Documentation**: I'll create runbooks for common operations\n3. **Local Development**: We'll set up Kafka in Docker Compose so everyone can experiment\n4. **Gradual Adoption**: Start with non-critical events, then migrate critical paths\n\nI estimate 2-3 weeks for the team to be comfortable with basic producer/consumer patterns. John mentioned he can do a brown-bag session next Thursday to get everyone started." }
+      ]
+    },
+    {
+      "id": "conv-004",
+      "metadata": { "topic": "Deployment Strategy", "domain": "DevOps" },
+      "turns": [
+        { "role": "user", "content": "We need to decide on our deployment strategy. Blue-green or canary?" },
+        { "role": "assistant", "content": "For our situation, I recommend **canary deployments** over blue-green. Here's my reasoning:\n\n1. **Cost**: Blue-green requires 2x infrastructure during deployment; canary uses existing capacity\n2. **Risk Mitigation**: Canary lets us catch issues with 5% traffic before full rollout\n3. **Metrics-Driven**: We can automate rollback based on error rate thresholds\n4. **Our Scale**: With 50k daily users, even 5% canary = 2,500 users to detect issues\n\nBlue-green is simpler but riskier - you're either all-in or rolling back entirely. Given our SLO requirements (99.9% uptime), canary gives us more control." },
+        { "role": "user", "content": "How does this integrate with our Kubernetes setup?" },
+        { "role": "assistant", "content": "Great question - Kubernetes makes canary deployments straightforward:\n\n1. **Istio Service Mesh**: We're already using Istio, which has native traffic splitting\n2. **Flagger**: This Kubernetes operator automates canary analysis and promotion\n3. **Implementation**:\n   - Deploy new version as separate deployment\n   - Istio routes 5% -> 25% -> 50% -> 100% traffic\n   - Flagger watches Prometheus metrics for error rates\n   - Auto-rollback if error rate > 1%\n\nI'll create a spike ticket to prototype this with the payments service first, since it's lower risk than auth." }
+      ]
+    },
+    {
+      "id": "conv-005",
+      "metadata": { "topic": "Performance Issue", "domain": "Engineering" },
+      "turns": [
+        { "role": "user", "content": "The dashboard is loading slowly - users are complaining. What did we find?" },
+        { "role": "assistant", "content": "We investigated and found the root cause:\n\n**Problem**: The dashboard makes 47 API calls on initial load\n**Root Cause**: Each widget fetches its own data independently, causing:\n- N+1 query pattern\n- No request batching\n- Redundant auth token validation\n\n**Metrics**:\n- P95 load time: 8.2 seconds (target: <3s)\n- Average API calls: 47 per page load\n- Database queries: 156 per page load\n\n**Solution**: Implement a GraphQL BFF (Backend for Frontend) to batch and optimize queries." },
+        { "role": "user", "content": "How much improvement can we expect from GraphQL?" },
+        { "role": "assistant", "content": "Based on our analysis and similar implementations:\n\n**Expected Improvements**:\n- API calls: 47 -> 1 (single GraphQL query)\n- Database queries: 156 -> 23 (DataLoader batching)\n- P95 load time: 8.2s -> ~2.1s (74% reduction)\n\n**Implementation Plan**:\n1. Week 1: Set up Apollo Server BFF\n2. Week 2: Migrate top 5 widgets\n3. Week 3: Implement DataLoader for batching\n4. Week 4: Migrate remaining widgets + monitoring\n\n**Risk**: Learning curve for team on GraphQL. Mitigation: Marcus has GraphQL experience and will pair program.\n\nShall I create the Jira epic and break down the stories?" }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "q-001",
+      "query": "What database did we choose for the auth service and why?",
+      "expectedAnswer": "PostgreSQL",
+      "requiredFacts": ["PostgreSQL", "ACID", "auth service", "transactions"],
+      "relevantConversationIds": ["conv-001"],
+      "category": "factual-recall",
+      "difficulty": "easy"
+    },
+    {
+      "id": "q-002", 
+      "query": "Who prefers TypeScript and what were their reasons?",
+      "expectedAnswer": "Sarah prefers TypeScript",
+      "requiredFacts": ["Sarah", "TypeScript", "type safety", "IDE support"],
+      "relevantConversationIds": ["conv-002"],
+      "category": "factual-recall",
+      "difficulty": "easy"
+    },
+    {
+      "id": "q-003",
+      "query": "What message broker are we using and who has experience with it?",
+      "expectedAnswer": "Kafka",
+      "requiredFacts": ["Kafka", "John", "Alice", "event sourcing"],
+      "relevantConversationIds": ["conv-003"],
+      "category": "factual-recall",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q-004",
+      "query": "What deployment strategy did we decide on and how does it work with Kubernetes?",
+      "expectedAnswer": "canary deployments",
+      "requiredFacts": ["canary", "Istio", "Flagger", "traffic splitting"],
+      "relevantConversationIds": ["conv-004"],
+      "category": "factual-recall",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q-005",
+      "query": "What was causing the dashboard performance issues and what's the solution?",
+      "expectedAnswer": "GraphQL BFF",
+      "requiredFacts": ["47 API calls", "GraphQL", "DataLoader", "BFF"],
+      "relevantConversationIds": ["conv-005"],
+      "category": "factual-recall",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q-006",
+      "query": "Which team members have expertise that we're leveraging for new technologies?",
+      "expectedAnswer": "John for Kafka, Marcus for GraphQL, Sarah for TypeScript",
+      "requiredFacts": ["John", "Kafka", "Marcus", "GraphQL", "Sarah", "TypeScript"],
+      "relevantConversationIds": ["conv-002", "conv-003", "conv-005"],
+      "category": "multi-hop",
+      "difficulty": "hard"
+    },
+    {
+      "id": "q-007",
+      "query": "What are our infrastructure choices and the reasoning behind them?",
+      "expectedAnswer": "PostgreSQL for ACID, Kafka for event sourcing, Canary for safe deployments",
+      "requiredFacts": ["PostgreSQL", "ACID", "Kafka", "event sourcing", "canary", "risk"],
+      "relevantConversationIds": ["conv-001", "conv-003", "conv-004"],
+      "category": "synthesis",
+      "difficulty": "hard"
+    },
+    {
+      "id": "q-008",
+      "query": "What performance metrics were concerning and what's our target?",
+      "expectedAnswer": "P95 load time 8.2s, target under 3s",
+      "requiredFacts": ["P95", "8.2 seconds", "3s", "47 API calls"],
+      "relevantConversationIds": ["conv-005"],
+      "category": "factual-recall",
+      "difficulty": "medium"
+    }
+  ]
+}
