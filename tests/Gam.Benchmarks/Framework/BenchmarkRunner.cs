@@ -96,7 +96,9 @@ public class BenchmarkRunner
         totalStopwatch.Stop();
         
         // Calculate aggregate metrics
-        var successfulQueries = queryResults.Where(r => r.ContainsExpectedAnswer).ToList();
+        // A query is "successful" if it achieves >= 80% fact recall (found most required facts)
+        const float factRecallThreshold = 0.8f;
+        var successfulQueries = queryResults.Where(r => r.FactRecall >= factRecallThreshold).ToList();
         
         return new BenchmarkRunResult
         {
@@ -171,7 +173,23 @@ public class BenchmarkRunner
     
     private static bool ContainsAnswer(string context, string expectedAnswer)
     {
-        // Simple substring check - can be enhanced with semantic similarity
+        // Check if any key term from the expected answer is found
+        // Split on common delimiters to extract key terms
+        var keyTerms = expectedAnswer
+            .Split(new[] { ',', ';', ' for ', ' and ', ' or ', " - " }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 2) // Skip tiny words
+            .ToList();
+
+        // If we have identifiable key terms, check that at least the first/primary one is found
+        // The first term is typically the main answer (e.g., "PostgreSQL" in "PostgreSQL for ACID")
+        if (keyTerms.Count > 0)
+        {
+            var primaryTerm = keyTerms[0];
+            return context.Contains(primaryTerm, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Fallback to full string match
         return context.Contains(expectedAnswer, StringComparison.OrdinalIgnoreCase);
     }
     

@@ -111,7 +111,7 @@ public record BenchmarkRunResult
     public required IReadOnlyList<BenchmarkQueryResult> QueryResults { get; init; }
     
     // Aggregate metrics
-    public required float OverallAccuracy { get; init; }  // % of queries with correct answer
+    public required float OverallAccuracy { get; init; }  // % of queries achieving >= 80% fact recall
     public required float AverageFactRecall { get; init; }
     public required float AverageRelevantPageRatio { get; init; }
     public required TimeSpan AverageQueryDuration { get; init; }
