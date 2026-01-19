@@ -250,7 +250,7 @@ public class DeepResearchLiveTests : IAsyncLifetime
         await using var cmdExtension = new NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS vector;", conn);
         await cmdExtension.ExecuteNonQueryAsync();
 
-        // Create tables
+        // Create tables with ADR-0002 enhancements
         const string createTables = """
             CREATE TABLE IF NOT EXISTS memory_pages (
                 id UUID PRIMARY KEY,
@@ -259,7 +259,11 @@ public class DeepResearchLiveTests : IAsyncLifetime
                 token_count INTEGER NOT NULL,
                 embedding vector(1536),
                 metadata JSONB,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                -- ADR-0002: importance and access tracking
+                importance FLOAT DEFAULT 0.5,
+                access_count INTEGER DEFAULT 0,
+                last_accessed_at TIMESTAMPTZ
             );
 
             CREATE TABLE IF NOT EXISTS memory_abstracts (
@@ -268,7 +272,10 @@ public class DeepResearchLiveTests : IAsyncLifetime
                 summary TEXT NOT NULL,
                 headers TEXT[] NOT NULL,
                 summary_embedding vector(1536),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                -- ADR-0002: memory type and tags
+                memory_type VARCHAR(20) DEFAULT 'conversation',
+                tags TEXT[] DEFAULT '{}'
             );
 
             CREATE INDEX IF NOT EXISTS idx_pages_owner ON memory_pages(owner_id);
@@ -276,6 +283,10 @@ public class DeepResearchLiveTests : IAsyncLifetime
             CREATE INDEX IF NOT EXISTS idx_abstracts_owner ON memory_abstracts(owner_id);
             CREATE INDEX IF NOT EXISTS idx_pages_content_fts ON memory_pages USING gin(to_tsvector('english', content));
             CREATE INDEX IF NOT EXISTS idx_abstracts_headers ON memory_abstracts USING gin(headers);
+            -- ADR-0002 indexes
+            CREATE INDEX IF NOT EXISTS idx_pages_importance ON memory_pages(owner_id, importance DESC);
+            CREATE INDEX IF NOT EXISTS idx_abstracts_type ON memory_abstracts(owner_id, memory_type);
+            CREATE INDEX IF NOT EXISTS idx_abstracts_tags ON memory_abstracts USING GIN(tags);
             """;
 
         await using var cmdTables = new NpgsqlCommand(createTables, conn);

@@ -14,6 +14,7 @@ public static class DeepResearchPrompts
     /// <summary>
     /// System prompt for multi-query planning.
     /// Key difference from simple research: generates MULTIPLE queries per iteration.
+    /// Enhanced with ADR-0002 metadata awareness.
     /// </summary>
     public const string DeepPlanSystemPrompt = """
         You are a research planning agent. Your task is to create a comprehensive search plan 
@@ -24,6 +25,7 @@ public static class DeepResearchPrompts
         1. KEYWORD (BM25): Lexical search
            - Best for: specific terms, names, identifiers, exact phrases
            - Generate queries with exact terms likely used in the memories
+           - Entity tags (entity:person:name, entity:tool:name) enable precise keyword matches
            
         2. VECTOR (Semantic): Embedding similarity search  
            - Best for: conceptual similarity, paraphrased ideas, related topics
@@ -33,15 +35,20 @@ public static class DeepResearchPrompts
            - Best for: when you see specific memories in the MEMORY section that are relevant
            - Use the index numbers [0], [1], etc. from the MEMORY section
 
+        MEMORY METADATA (use to prioritize):
+        - Type: decision, preference, fact, insight, task, context, conversation
+        - Importance: 0.0-1.0 (higher = more significant)
+        - Tags: entity:type:name or keyword:topic for precise matching
+
         KEY INSIGHT: Generate MULTIPLE queries per tool for better coverage. Different phrasings 
-        find different relevant memories.
+        find different relevant memories. Use entity tags in keyword queries when relevant.
 
         Output a JSON object with this exact structure:
         {
             "strategy": "Brief description of your search approach",
             "info_needs": ["What specific information do you need?", "What sub-questions must be answered?"],
             "tools": ["keyword", "vector"],
-            "keyword_queries": ["exact term 1", "specific name", "technical phrase"],
+            "keyword_queries": ["exact term 1", "entity:person:john", "technical phrase"],
             "vector_queries": ["How does X work?", "What was decided about Y?"],
             "page_indices": [0, 3],
             "is_complete": false
@@ -57,6 +64,7 @@ public static class DeepResearchPrompts
     /// <summary>
     /// System prompt for LLM integration - synthesizing search hits into coherent context.
     /// This is what makes GAM different from simple RAG: LLM synthesizes, not just concatenates.
+    /// Enhanced with ADR-0002 importance awareness.
     /// </summary>
     public const string IntegrationSystemPrompt = """
         You are a research synthesis agent. Your task is to integrate new search results with 
@@ -68,6 +76,7 @@ public static class DeepResearchPrompts
         3. CITE SOURCES - Reference page IDs when making claims
         4. STAY FOCUSED - Only include information relevant to the question
         5. PRESERVE DETAILS - Don't lose important specifics like names, numbers, dates
+        6. PRIORITIZE - Give more weight to Decision and Fact type memories over general Conversation
 
         Output a JSON object:
         {
@@ -120,6 +129,7 @@ public static class DeepResearchPrompts
 
     /// <summary>
     /// Build the user prompt for deep planning.
+    /// Enhanced with ADR-0002 metadata (type, importance, tags).
     /// </summary>
     public static string BuildDeepPlanPrompt(
         string query, 
@@ -141,14 +151,22 @@ public static class DeepResearchPrompts
             sb.AppendLine();
         }
         
-        sb.AppendLine("MEMORY (available pages with summaries):");
+        sb.AppendLine("MEMORY (available pages with summaries and metadata):");
         for (var i = 0; i < abstracts.Count; i++)
         {
             var abs = abstracts[i];
-            sb.AppendLine($"[{i}] {abs.Summary}");
+            // Format: [index] (Type: type, Importance: 0.X) Summary
+            sb.AppendLine($"[{i}] (Type: {abs.Type}, Importance: {GetImportanceLabel(abs)}) {abs.Summary}");
+            
             if (abs.Headers.Count > 0)
             {
                 sb.AppendLine($"    Headers: {string.Join(", ", abs.Headers)}");
+            }
+            
+            // Show tags if present (ADR-0002)
+            if (abs.Tags.Count > 0)
+            {
+                sb.AppendLine($"    Tags: {string.Join(", ", abs.Tags)}");
             }
         }
         
@@ -159,8 +177,28 @@ public static class DeepResearchPrompts
         
         sb.AppendLine();
         sb.AppendLine("Generate a search plan to find information relevant to the QUESTION:");
+        sb.AppendLine("(Prioritize high-importance memories and use entity tags for precise keyword queries)");
         
         return sb.ToString();
+    }
+    
+    /// <summary>
+    /// Get a human-readable importance label.
+    /// We don't have page importance directly, so we estimate from type.
+    /// </summary>
+    private static string GetImportanceLabel(MemoryAbstract abs)
+    {
+        // Map type to approximate importance for display
+        return abs.Type switch
+        {
+            MemoryType.Decision => "High",
+            MemoryType.Fact => "High",
+            MemoryType.Preference => "Medium-High",
+            MemoryType.Insight => "Medium",
+            MemoryType.Task => "Medium",
+            MemoryType.Context => "Low-Medium",
+            _ => "Medium"
+        };
     }
 
     /// <summary>
