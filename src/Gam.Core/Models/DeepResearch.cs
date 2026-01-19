@@ -127,26 +127,26 @@ public record DeepResearchStep
 /// <summary>
 /// Configuration for Deep Research behavior.
 /// </summary>
-public record DeepResearchOptions
+public class DeepResearchOptions
 {
     /// <summary>Maximum iterations of the Plan→Search→Integrate→Reflect loop.</summary>
-    public int MaxIterations { get; init; } = 3;
+    public int MaxIterations { get; set; } = 3;
     
     /// <summary>Maximum hits to process per iteration.</summary>
-    public int MaxHitsPerIteration { get; init; } = 10;
+    public int MaxHitsPerIteration { get; set; } = 10;
     
     /// <summary>Maximum keyword queries per plan.</summary>
-    public int MaxKeywordQueries { get; init; } = 5;
+    public int MaxKeywordQueries { get; set; } = 5;
     
     /// <summary>Maximum vector queries per plan.</summary>
-    public int MaxVectorQueries { get; init; } = 5;
+    public int MaxVectorQueries { get; set; } = 5;
     
     /// <summary>Top-K results per individual query.</summary>
-    public int TopKPerQuery { get; init; } = 5;
+    public int TopKPerQuery { get; set; } = 5;
     
     /// <summary>Maximum tokens in final context.</summary>
-    public int MaxContextTokens { get; init; } = 8000;
+    public int MaxContextTokens { get; set; } = 8000;
     
     /// <summary>Minimum relevance score to include a result.</summary>
-    public float MinRelevanceScore { get; init; } = 0.3f;
+    public float MinRelevanceScore { get; set; } = 0.3f;
 }

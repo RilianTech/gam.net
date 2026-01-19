@@ -407,51 +407,90 @@ public class DeepResearchAgent : IResearchAgent
 
 ## Implementation Plan
 
-### Phase 1: Multi-Query Planning
-- [ ] Create `DeepResearchPlan` model with multiple query lists
-- [ ] Update `IPromptProvider` with new planning prompt
-- [ ] Implement JSON schema parsing for plan response
-- [ ] Update `ResearchAgent.PlanAsync()` to generate multi-query plans
+### Phase 1: Multi-Query Planning ✅ COMPLETE
+- [x] Create `DeepResearchPlan` model with multiple query lists
+  - **Implemented:** `src/Gam.Core/Models/DeepResearch.cs`
+- [x] Update `IPromptProvider` with new planning prompt
+  - **Implemented:** `src/Gam.Core/Prompts/DeepResearchPrompts.cs` (standalone, not via IPromptProvider)
+- [x] Implement JSON schema parsing for plan response
+  - **Implemented:** `DeepResearchPrompts.ParsePlanResponse()` with fallback parsing
+- [x] Update `ResearchAgent.PlanAsync()` to generate multi-query plans
+  - **Implemented:** `DeepResearchAgent.PlanAsync()` in `src/Gam.Core/Agents/DeepResearchAgent.cs`
 - [ ] Add unit tests for plan generation
 
 **Effort:** 4-5 hours
 
-### Phase 2: Multi-Query Search Execution
-- [ ] Update `SearchAsync()` to execute ALL queries in plan
-- [ ] Implement score aggregation across queries (same page from multiple queries)
-- [ ] Add deduplication logic
+### Phase 2: Multi-Query Search Execution ✅ COMPLETE
+- [x] Update `SearchAsync()` to execute ALL queries in plan
+  - **Implemented:** `DeepResearchAgent.SearchAsync()` executes all keyword + vector queries
+- [x] Implement score aggregation across queries (same page from multiple queries)
+  - **Implemented:** Keeps highest score per page via `Dictionary<Guid, (float Score, RetrievalResult)>`
+- [x] Add deduplication logic
+  - **Implemented:** Deduplicates by PageId before returning
 - [ ] Update retrievers to support batch queries efficiently (optional optimization)
 - [ ] Add integration tests
 
 **Effort:** 3-4 hours
 
-### Phase 3: LLM Integration Phase
-- [ ] Create `IResultIntegrator` interface
-- [ ] Create `IntegratedResult` model
-- [ ] Implement `LlmResultIntegrator` with integration prompt
-- [ ] Wire into research loop between Search and Reflect
+### Phase 3: LLM Integration Phase ✅ COMPLETE
+- [x] Create `IResultIntegrator` interface
+  - **Note:** Implemented inline in `DeepResearchAgent` rather than separate interface
+- [x] Create `IntegratedResult` model
+  - **Implemented:** `src/Gam.Core/Models/DeepResearch.cs`
+- [x] Implement `LlmResultIntegrator` with integration prompt
+  - **Implemented:** `DeepResearchAgent.IntegrateAsync()` with `DeepResearchPrompts.IntegrationSystemPrompt`
+- [x] Wire into research loop between Search and Reflect
+  - **Implemented:** In main `ResearchStreamAsync()` loop
 - [ ] Add unit tests
 
 **Effort:** 3-4 hours
 
-### Phase 4: Two-Step Reflection
-- [ ] Create `ReflectionResult` model with `FollowUpQueries`
-- [ ] Update `IResearchReflector` interface
-- [ ] Implement two-step reflection (InfoCheck → GenerateRequests)
-- [ ] Update research loop to use follow-up queries
+### Phase 4: Two-Step Reflection ✅ COMPLETE
+- [x] Create `ReflectionResult` model with `FollowUpQueries`
+  - **Implemented:** `src/Gam.Core/Models/DeepResearch.cs`
+- [x] Update `IResearchReflector` interface
+  - **Note:** Implemented inline in `DeepResearchAgent` rather than separate interface
+- [x] Implement two-step reflection (InfoCheck → GenerateRequests)
+  - **Implemented:** `DeepResearchAgent.ReflectAsync()` with two LLM calls
+- [x] Update research loop to use follow-up queries
+  - **Implemented:** `context.FollowUpQueries` stored for next iteration
 - [ ] Add unit tests
 
 **Effort:** 3-4 hours
 
-### Phase 5: Integration & Testing
-- [ ] End-to-end integration testing
+### Phase 5: Integration & Testing 🔄 IN PROGRESS
+- [x] End-to-end integration testing setup
+  - **Implemented:** `tests/Gam.Benchmarks/` with `BenchmarkRunner` and sample dataset
 - [ ] Update samples/demos
-- [ ] Performance benchmarking (LLM calls per query)
+- [x] Performance benchmarking (LLM calls per query)
+  - **Implemented:** Benchmark framework tracks iterations, pages, tokens, duration
 - [ ] Documentation updates
+- [x] DI wiring
+  - **Implemented:** `AddGamCoreWithDeepResearch()` and `UseDeepResearch` config option
 
 **Effort:** 3-4 hours
 
 ### Total Estimated Effort: 16-21 hours
+
+### Implementation Status Summary
+
+| Component | ADR Spec | Implementation | File |
+|-----------|----------|----------------|------|
+| `DeepResearchPlan` | ✅ | ✅ Matches spec | `Models/DeepResearch.cs` |
+| `IntegratedResult` | ✅ | ✅ Matches spec | `Models/DeepResearch.cs` |
+| `ReflectionResult` | ✅ | ✅ Matches spec | `Models/DeepResearch.cs` |
+| `IResultIntegrator` | Interface | Inline in agent | `Agents/DeepResearchAgent.cs` |
+| `IResearchReflector` | Interface | Inline in agent | `Agents/DeepResearchAgent.cs` |
+| Planning prompt | JSON output | ✅ JSON with fallback | `Prompts/DeepResearchPrompts.cs` |
+| Integration prompt | JSON output | ✅ JSON with fallback | `Prompts/DeepResearchPrompts.cs` |
+| Reflection prompts | Two-step | ✅ InfoCheck + FollowUp | `Prompts/DeepResearchPrompts.cs` |
+| Feature flag | `UseDeepResearch` | ✅ Config option | `Configuration/GamOptions.cs` |
+
+### Deviations from ADR
+
+1. **No separate `IResultIntegrator`/`IResearchReflector` interfaces** - Implemented inline in `DeepResearchAgent` for simplicity. Can be extracted if needed for testing/mocking.
+
+2. **Prompts in separate file** - Created `DeepResearchPrompts.cs` instead of extending `IPromptProvider`. This keeps Deep Research prompts self-contained.
 
 ## Configuration
 
@@ -513,8 +552,13 @@ For comparison, current implementation uses ~2-3 LLM calls total.
 ## Open Questions
 
 1. **Parallel query execution** - Should we run keyword and vector queries in parallel?
+   - **Answer:** YES - Implemented via `Task.WhenAll()` in `SearchAsync()`. All queries run in parallel.
+
 2. **Caching** - Should we cache integration results for repeated similar queries?
+   - **Status:** Not implemented yet. Consider for future optimization.
+
 3. **Streaming** - Should integration/reflection stream results for better UX?
+   - **Status:** `ResearchStreamAsync()` yields `ResearchStep` after each phase, enabling real-time progress updates. LLM responses themselves are not streamed yet.
 
 ## References
 
