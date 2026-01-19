@@ -176,7 +176,11 @@ public class BenchmarkRunner
         // Check if any key term from the expected answer is found
         // Split on common delimiters to extract key terms
         var keyTerms = expectedAnswer
-            .Split(new[] { ',', ';', ' for ', ' and ', ' or ', " - " }, StringSplitOptions.RemoveEmptyEntries)
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries)
+            .SelectMany(s => s.Split(" for ", StringSplitOptions.RemoveEmptyEntries))
+            .SelectMany(s => s.Split(" and ", StringSplitOptions.RemoveEmptyEntries))
+            .SelectMany(s => s.Split(" or ", StringSplitOptions.RemoveEmptyEntries))
+            .SelectMany(s => s.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
             .Select(t => t.Trim())
             .Where(t => t.Length > 2) // Skip tiny words
             .ToList();
