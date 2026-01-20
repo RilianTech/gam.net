@@ -108,7 +108,14 @@ public interface IMemoryStore
     /// Get all unique owner IDs in the store.
     /// Used by background service to process all owners.
     /// </summary>
+    [Obsolete("Use StreamOwnerIdsAsync for better memory efficiency")]
     Task<IReadOnlyList<string>> GetAllOwnerIdsAsync(CancellationToken ct = default);
+    
+    /// <summary>
+    /// Stream unique owner IDs from the store.
+    /// More memory-efficient than GetAllOwnerIdsAsync for large datasets.
+    /// </summary>
+    IAsyncEnumerable<string> StreamOwnerIdsAsync(CancellationToken ct = default);
 }
 
 /// <summary>

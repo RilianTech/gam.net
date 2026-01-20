@@ -600,18 +600,26 @@ public class PostgresMemoryStore : IMemoryStore
     
     public async Task<IReadOnlyList<string>> GetAllOwnerIdsAsync(CancellationToken ct = default)
     {
+        var ownerIds = new List<string>();
+        await foreach (var ownerId in StreamOwnerIdsAsync(ct))
+        {
+            ownerIds.Add(ownerId);
+        }
+        return ownerIds;
+    }
+    
+    public async IAsyncEnumerable<string> StreamOwnerIdsAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
             SELECT DISTINCT owner_id FROM memory_pages
             """, conn);
         
-        var ownerIds = new List<string>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            ownerIds.Add(reader.GetString(0));
+            yield return reader.GetString(0);
         }
-        
-        return ownerIds;
     }
 }
