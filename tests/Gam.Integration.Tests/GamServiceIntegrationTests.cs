@@ -120,11 +120,10 @@ public class GamServiceIntegrationTests : IAsyncLifetime
         // Act - Memorize
         await gam.MemorizeAsync(new MemorizeRequest
         {
-            Turn = new ConversationTurn
+            Input = new MemoryInput
             {
                 OwnerId = ownerId,
-                UserMessage = "What is Kubernetes?",
-                AssistantMessage = "Kubernetes is a container orchestration platform.",
+                Content = "User: What is Kubernetes?\nAssistant: Kubernetes is a container orchestration platform.",
                 Timestamp = DateTimeOffset.UtcNow
             }
         });

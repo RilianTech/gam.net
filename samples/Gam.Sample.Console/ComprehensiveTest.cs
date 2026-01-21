@@ -168,11 +168,10 @@ public class ComprehensiveTest
             System.Console.WriteLine($"  Storing: {userMsg[..Math.Min(50, userMsg.Length)]}...");
             await _gam.MemorizeAsync(new MemorizeRequest
             {
-                Turn = new ConversationTurn
+                Input = new MemoryInput
                 {
                     OwnerId = _ownerId,
-                    UserMessage = userMsg,
-                    AssistantMessage = assistantMsg,
+                    Content = $"User: {userMsg}\n\nAssistant: {assistantMsg}",
                     Timestamp = DateTimeOffset.UtcNow
                 }
             });
@@ -234,11 +233,10 @@ public class ComprehensiveTest
         var longContent = string.Join("\n", Enumerable.Range(1, 100).Select(i => $"Line {i}: This is a detailed explanation about topic {i} with various technical details."));
         await _gam.MemorizeAsync(new MemorizeRequest
         {
-            Turn = new ConversationTurn
+            Input = new MemoryInput
             {
                 OwnerId = _ownerId,
-                UserMessage = "Give me a very detailed explanation",
-                AssistantMessage = longContent,
+                Content = $"User: Give me a very detailed explanation\n\nAssistant: {longContent}",
                 Timestamp = DateTimeOffset.UtcNow
             }
         });

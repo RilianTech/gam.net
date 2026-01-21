@@ -50,11 +50,10 @@ app.MapPost("/memorize", async (MemorizeDto dto, IGamService gam) =>
 {
     await gam.MemorizeAsync(new MemorizeRequest
     {
-        Turn = new ConversationTurn
+        Input = new MemoryInput
         {
             OwnerId = dto.OwnerId,
-            UserMessage = dto.UserMessage,
-            AssistantMessage = dto.AssistantMessage,
+            Content = dto.Content,
             Timestamp = DateTimeOffset.UtcNow
         }
     });
@@ -153,7 +152,7 @@ app.Run();
 // DTOs
 // ============================================================================
 
-record MemorizeDto(string OwnerId, string UserMessage, string AssistantMessage);
+record MemorizeDto(string OwnerId, string Content);
 record ResearchDto(string OwnerId, string Query, int? MaxTokens = null);
 record ForgetDto(string OwnerId, bool All = false);
 record ToolCallDto(string Name, string Arguments);

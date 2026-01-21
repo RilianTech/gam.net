@@ -9,7 +9,7 @@ public interface IPromptProvider
 {
     // Memory Agent prompts
     string GetMemorySystemPrompt();
-    string BuildMemoryUserPrompt(ConversationTurn turn);
+    string BuildMemoryUserPrompt(MemoryInput input);
     
     // Research Agent prompts
     string GetPlanSystemPrompt();
@@ -50,9 +50,9 @@ public class PromptOptions
     public bool IncludeToolCalls { get; set; } = true;
 
     /// <summary>
-    /// Whether to include conversation ID in memory prompts. Default: true
+    /// Whether to include session ID in memory prompts. Default: true
     /// </summary>
-    public bool IncludeConversationId { get; set; } = true;
+    public bool IncludeSessionId { get; set; } = true;
 
     /// <summary>
     /// Maximum characters of content preview in plan/reflect prompts. Default: 200
