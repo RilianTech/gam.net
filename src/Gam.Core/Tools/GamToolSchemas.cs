@@ -20,7 +20,7 @@ public static class GamToolSchemas
     ];
 
     /// <summary>
-    /// Tool for storing a conversation turn in memory.
+    /// Tool for storing content in memory.
     /// </summary>
     public static ToolDefinition MemorizeTool => new()
     {
@@ -28,29 +28,29 @@ public static class GamToolSchemas
         Function = new FunctionDefinition
         {
             Name = "gam_memorize",
-            Description = "Store a conversation turn in long-term memory. Use this to save important information from the current conversation that should be remembered for future sessions.",
+            Description = "Store content in long-term memory. Use this to save important information that should be remembered for future sessions.",
             Parameters = new ParameterSchema
             {
                 Type = "object",
                 Properties = new Dictionary<string, PropertySchema>
                 {
-                    ["user_message"] = new()
+                    ["content"] = new()
                     {
                         Type = "string",
-                        Description = "The user's message or question"
-                    },
-                    ["assistant_message"] = new()
-                    {
-                        Type = "string",
-                        Description = "The assistant's response"
+                        Description = "The content to memorize"
                     },
                     ["owner_id"] = new()
                     {
                         Type = "string",
                         Description = "The user/owner ID to associate this memory with"
+                    },
+                    ["session_id"] = new()
+                    {
+                        Type = "string",
+                        Description = "Optional session or conversation ID for grouping related memories"
                     }
                 },
-                Required = ["user_message", "assistant_message", "owner_id"]
+                Required = ["content", "owner_id"]
             }
         }
     };

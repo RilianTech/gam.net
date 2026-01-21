@@ -14,7 +14,7 @@ public static class DeepResearchPrompts
     /// <summary>
     /// System prompt for multi-query planning.
     /// Key difference from simple research: generates MULTIPLE queries per iteration.
-    /// Enhanced with ADR-0002 metadata awareness.
+    /// Enhanced with ADR-0002 metadata awareness and temporal query handling.
     /// </summary>
     public const string DeepPlanSystemPrompt = """
         You are a research planning agent. Your task is to create a comprehensive search plan 
@@ -40,6 +40,17 @@ public static class DeepResearchPrompts
         - Importance: 0.0-1.0 (higher = more significant)
         - Tags: entity:type:name or keyword:topic for precise matching
 
+        TEMPORAL QUERY HANDLING:
+        ========================
+        If the question asks "when", "what date", "what time", or involves time:
+        1. Search for the EVENT/ACTIVITY first (not the date itself)
+        2. Look for person names + activity keywords
+        3. Include date-related keywords if specific dates are mentioned
+        
+        Example: "When did John go to the doctor?"
+        - Keyword queries: ["John doctor", "John medical", "John appointment"]
+        - Vector queries: ["John visiting doctor or medical appointment"]
+        
         KEY INSIGHT: Generate MULTIPLE queries per tool for better coverage. Different phrasings 
         find different relevant memories. Use entity tags in keyword queries when relevant.
 
@@ -51,9 +62,12 @@ public static class DeepResearchPrompts
             "keyword_queries": ["exact term 1", "entity:person:john", "technical phrase"],
             "vector_queries": ["How does X work?", "What was decided about Y?"],
             "page_indices": [0, 3],
-            "is_complete": false
+            "is_complete": false,
+            "is_temporal_query": false
         }
 
+        Set is_temporal_query=true if the question asks about WHEN something happened.
+        
         Set is_complete=true ONLY when:
         - The EXISTING CONTEXT fully addresses all aspects of the question
         - Multiple search iterations have yielded diminishing returns
@@ -289,7 +303,8 @@ public static class DeepResearchPrompts
                 KeywordQueries = ParseStringArray(root, "keyword_queries"),
                 VectorQueries = ParseStringArray(root, "vector_queries"),
                 PageIndices = ParseIntArray(root, "page_indices"),
-                IsComplete = root.TryGetProperty("is_complete", out var c) && c.GetBoolean()
+                IsComplete = root.TryGetProperty("is_complete", out var c) && c.GetBoolean(),
+                IsTemporalQuery = root.TryGetProperty("is_temporal_query", out var t) && t.GetBoolean()
             };
         }
         catch (JsonException)
@@ -451,7 +466,8 @@ public static class DeepResearchPrompts
             KeywordQueries = keywordQueries,
             VectorQueries = vectorQueries.Count > 0 ? vectorQueries : keywordQueries, // Use keyword as fallback
             PageIndices = Array.Empty<int>(),
-            IsComplete = isComplete
+            IsComplete = isComplete,
+            IsTemporalQuery = false
         };
     }
 }

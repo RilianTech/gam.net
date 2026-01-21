@@ -3,11 +3,11 @@ using Gam.Core.Abstractions;
 namespace Gam.Core.Models;
 
 /// <summary>
-/// Request to memorize a conversation turn.
+/// Request to memorize content.
 /// </summary>
 public record MemorizeRequest
 {
-    public required ConversationTurn Turn { get; init; }
+    public required MemoryInput Input { get; init; }
     
     /// <summary>If true, process synchronously. If false, queue for background processing.</summary>
     public bool Synchronous { get; init; } = true;
@@ -24,8 +24,8 @@ public record ResearchRequest
     /// <summary>The query to research.</summary>
     public required string Query { get; init; }
     
-    /// <summary>Optional recent conversation context to inform research.</summary>
-    public IReadOnlyList<ConversationTurn>? RecentContext { get; init; }
+    /// <summary>Optional recent context to inform research (formatted as content strings).</summary>
+    public IReadOnlyList<string>? RecentContext { get; init; }
     
     /// <summary>Research options.</summary>
     public ResearchOptions? Options { get; init; }
@@ -55,5 +55,5 @@ public record ResearchQuery
 {
     public required string OwnerId { get; init; }
     public required string Query { get; init; }
-    public IReadOnlyList<ConversationTurn>? RecentContext { get; init; }
+    public IReadOnlyList<string>? RecentContext { get; init; }
 }

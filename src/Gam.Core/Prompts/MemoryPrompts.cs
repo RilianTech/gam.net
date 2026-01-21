@@ -7,101 +7,84 @@ namespace Gam.Core.Prompts;
 /// <summary>
 /// Prompts used by the MemoryAgent for abstract generation.
 /// Based on the original GAM paper: https://arxiv.org/abs/2511.18423
-/// Enhanced with ADR-0002 memory enhancements (type, importance, tags).
+/// Simplified based on SimpleMem's proven approach: atomic facts, no pronouns, absolute times.
 /// </summary>
 public static class MemoryPrompts
 {
     /// <summary>
-    /// System prompt for the Memory Agent (Memorizer) from the GAM paper.
-    /// Enhanced with ADR-0002 fields: type, importance, tags.
+    /// System prompt for the Memory Agent (Memorizer).
+    /// Simplified to focus on what matters: atomic facts with disambiguation.
+    /// Inspired by SimpleMem's approach which achieves 43.24% F1 on LoCoMo.
     /// </summary>
     public const string AbstractSystemPrompt = """
-        You are an intelligent librarian managing a personal knowledge library for a user.
-        Your task is to analyze new pages (documents) and generate structured metadata for retrieval.
+        You extract searchable facts from conversations.
         
-        The library is organized as follows:
-        - Each page contains raw information from a conversation or document
-        - Each page has an abstract with summary, headers, type, importance, and tags
-        - This metadata enables precise retrieval during research
+        RULES - NEVER VIOLATE:
+        ======================
+        1. PROHIBIT all pronouns (he, she, it, they, this, that, their, his, her)
+           Replace with actual names from the content.
         
-        You must analyze the content and output JSON with these fields:
+        2. PROHIBIT relative time (yesterday, next week, last month, recently)
+           Convert to absolute dates using the provided timestamp.
         
-        1. **summary**: 2-3 sentence overview capturing the essential information
+        3. Extract MULTIPLE searchable facts, not just one summary.
+           Each fact must be self-contained and independently understandable.
         
-        2. **headers**: 3-7 searchable keywords/phrases for index lookup
-           - Be specific: "Python asyncio debugging" not just "Python"
-           - Include: topics, entities, actions, temporal context
-        
-        3. **type**: Classify as ONE of:
-           - "decision": A choice was made between alternatives
-           - "preference": User expressed like/dislike without deciding
-           - "fact": Factual information was shared or learned
-           - "insight": A realization or understanding was reached
-           - "task": An action item or todo was identified
-           - "context": Background information, no specific action
-           - "conversation": General discussion (default if unclear)
-        
-        4. **importance**: 0.0-1.0 score for future relevance:
-           - 0.8-1.0: Critical decisions, key facts, important preferences
-           - 0.5-0.7: Useful context, moderate relevance
-           - 0.2-0.4: Minor details, low future relevance
-        
-        5. **tags**: Entity and topic tags for precise retrieval:
-           - Format: "entity:<type>:<name>" or "keyword:<topic>"
-           - Entity types: person, organization, tool, project, concept, location
-           - Examples: "entity:person:john", "entity:tool:postgresql", "keyword:database"
-           - Extract 3-10 tags
-        
-        Output ONLY valid JSON, no markdown code blocks:
+        OUTPUT FORMAT (JSON only, no markdown):
         {
-          "summary": "...",
-          "headers": ["...", "..."],
-          "type": "decision|preference|fact|insight|task|context|conversation",
-          "importance": 0.0-1.0,
-          "tags": ["entity:type:name", "keyword:topic", ...]
+          "summary": "Brief 1-2 sentence overview with names and dates",
+          "facts": [
+            "Fact 1 with specific names and absolute dates",
+            "Fact 2 with specific names and absolute dates",
+            "..."
+          ],
+          "entities": ["person1", "person2", "place1", "topic1"],
+          "type": "decision|preference|fact|task|conversation",
+          "importance": 0.0-1.0
         }
+        
+        EXAMPLES:
+        
+        Input: "He mentioned he'll visit the doctor next week"
+        Timestamp: 2023-05-15
+        Output facts: ["John will visit the doctor during week of 2023-05-22"]
+        
+        Input: "She said her son had an accident on the road trip"
+        Output facts: ["Maria's son had an accident during road trip", "Maria discussed son's road trip accident"]
         """;
 
     /// <summary>
     /// Build the user prompt for abstract generation.
     /// </summary>
-    public static string BuildAbstractPrompt(ConversationTurn turn)
+    public static string BuildAbstractPrompt(MemoryInput input)
     {
         var sb = new StringBuilder();
         
-        sb.AppendLine("Analyze the following page and generate JSON metadata:");
+        sb.AppendLine($"TIMESTAMP: {input.Timestamp:yyyy-MM-dd HH:mm}");
+        sb.AppendLine($"Use this timestamp to convert any relative times to absolute dates.");
         sb.AppendLine();
-        sb.AppendLine("---PAGE CONTENT---");
-        sb.AppendLine($"Date: {turn.Timestamp:yyyy-MM-dd HH:mm}");
-        if (!string.IsNullOrEmpty(turn.ConversationId))
-        {
-            sb.AppendLine($"Conversation: {turn.ConversationId}");
-        }
-        sb.AppendLine();
-        sb.AppendLine($"User: {turn.UserMessage}");
-        sb.AppendLine();
-        sb.AppendLine($"Assistant: {turn.AssistantMessage}");
+        sb.AppendLine("CONTENT:");
+        sb.AppendLine(input.Content);
         
-        if (turn.ToolCalls is { Count: > 0 })
+        if (input.ToolCalls is { Count: > 0 })
         {
             sb.AppendLine();
-            sb.AppendLine("Tools used:");
-            foreach (var tool in turn.ToolCalls)
+            sb.AppendLine("TOOLS USED:");
+            foreach (var tool in input.ToolCalls)
             {
                 sb.AppendLine($"  - {tool.ToolName}: {tool.Result}");
             }
         }
         
-        sb.AppendLine("---END PAGE---");
         sb.AppendLine();
-        sb.AppendLine("Output JSON with: summary, headers, type, importance, tags");
+        sb.AppendLine("Extract facts. Remember: NO pronouns, NO relative times.");
         
         return sb.ToString();
     }
     
     /// <summary>
     /// Parse the LLM response for abstract generation.
-    /// Supports both JSON format (preferred) and legacy text format for backward compatibility.
+    /// Supports new simplified format (facts), standard format (headers), and legacy text format.
     /// </summary>
     public static ParsedAbstract ParseAbstractResponse(string response)
     {
@@ -114,20 +97,58 @@ public static class MemoryPrompts
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
                 
+                // Get facts (new format) or headers (old format) - facts become headers for search
+                var headers = new List<string>();
+                
+                // Prefer "facts" (new simplified format)
+                if (root.TryGetProperty("facts", out var facts) && facts.ValueKind == JsonValueKind.Array)
+                {
+                    headers = facts.EnumerateArray()
+                        .Select(x => x.GetString() ?? "")
+                        .Where(x => !string.IsNullOrEmpty(x))
+                        .ToList();
+                }
+                // Fall back to "headers" (old format)
+                else if (root.TryGetProperty("headers", out var h) && h.ValueKind == JsonValueKind.Array)
+                {
+                    headers = h.EnumerateArray()
+                        .Select(x => x.GetString() ?? "")
+                        .Where(x => !string.IsNullOrEmpty(x))
+                        .ToList();
+                }
+                
+                // Get entities and convert to tags
+                var tags = new List<string>();
+                if (root.TryGetProperty("entities", out var entities) && entities.ValueKind == JsonValueKind.Array)
+                {
+                    tags = entities.EnumerateArray()
+                        .Select(x => x.GetString() ?? "")
+                        .Where(x => !string.IsNullOrEmpty(x))
+                        .Select(e => $"entity:{e.ToLowerInvariant()}")
+                        .ToList();
+                }
+                // Also support old "tags" format
+                else if (root.TryGetProperty("tags", out var oldTags) && oldTags.ValueKind == JsonValueKind.Array)
+                {
+                    tags = oldTags.EnumerateArray()
+                        .Select(x => x.GetString() ?? "")
+                        .Where(x => !string.IsNullOrEmpty(x))
+                        .ToList();
+                }
+                
                 return new ParsedAbstract
                 {
                     Summary = root.TryGetProperty("summary", out var s) ? s.GetString() ?? "" : "",
-                    Headers = root.TryGetProperty("headers", out var h) 
-                        ? h.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
-                        : [],
+                    Headers = headers,
                     Type = root.TryGetProperty("type", out var t) 
                         ? MemoryTypeExtensions.ParseMemoryType(t.GetString()) 
                         : MemoryType.Conversation,
                     Importance = root.TryGetProperty("importance", out var i) 
                         ? (float)i.GetDouble() 
                         : 0.5f,
-                    Tags = root.TryGetProperty("tags", out var tags) 
-                        ? tags.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
+                    Tags = tags,
+                    TemporalFacts = root.TryGetProperty("temporal_facts", out var tf) 
+                        ? ParseTemporalFacts(tf)
                         : []
                 };
             }
@@ -153,6 +174,50 @@ public static class MemoryPrompts
         }
         
         return null;
+    }
+    
+    private static IReadOnlyList<TemporalFact> ParseTemporalFacts(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Array)
+            return [];
+        
+        var facts = new List<TemporalFact>();
+        
+        foreach (var item in element.EnumerateArray())
+        {
+            var eventDesc = item.TryGetProperty("event", out var e) ? e.GetString() : null;
+            var dateStr = item.TryGetProperty("date", out var d) ? d.GetString() : null;
+            
+            if (string.IsNullOrEmpty(eventDesc) || string.IsNullOrEmpty(dateStr))
+                continue;
+            
+            // Try to parse the date
+            if (!DateTimeOffset.TryParse(dateStr, out var date))
+                continue;
+            
+            var participants = new List<string>();
+            if (item.TryGetProperty("participants", out var p) && p.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var participant in p.EnumerateArray())
+                {
+                    var name = participant.GetString();
+                    if (!string.IsNullOrEmpty(name))
+                        participants.Add(name);
+                }
+            }
+            
+            var location = item.TryGetProperty("location", out var loc) ? loc.GetString() : null;
+            
+            facts.Add(new TemporalFact
+            {
+                Event = eventDesc,
+                Date = date,
+                Participants = participants,
+                Location = location
+            });
+        }
+        
+        return facts;
     }
     
     private static ParsedAbstract ParseLegacyFormat(string response)
@@ -207,4 +272,27 @@ public record ParsedAbstract
     public MemoryType Type { get; init; } = MemoryType.Conversation;
     public float Importance { get; init; } = 0.5f;
     public IReadOnlyList<string> Tags { get; init; } = [];
+    
+    /// <summary>
+    /// Extracted temporal facts with absolute dates (from SimpleMem's Phi_time anchoring).
+    /// </summary>
+    public IReadOnlyList<TemporalFact> TemporalFacts { get; init; } = [];
+}
+
+/// <summary>
+/// A temporal fact extracted from memory content with an absolute date.
+/// </summary>
+public record TemporalFact
+{
+    /// <summary>Description of the event.</summary>
+    public required string Event { get; init; }
+    
+    /// <summary>Absolute date of the event (resolved from relative time).</summary>
+    public required DateTimeOffset Date { get; init; }
+    
+    /// <summary>People involved in the event.</summary>
+    public IReadOnlyList<string> Participants { get; init; } = [];
+    
+    /// <summary>Optional location of the event.</summary>
+    public string? Location { get; init; }
 }

@@ -29,6 +29,9 @@ public record DeepResearchPlan
     /// <summary>Whether the research is complete (sufficient context gathered).</summary>
     public bool IsComplete { get; init; }
     
+    /// <summary>Whether this is a temporal query (asking "when" something happened).</summary>
+    public bool IsTemporalQuery { get; init; }
+    
     /// <summary>Create an empty/default plan.</summary>
     public static DeepResearchPlan Empty => new()
     {
@@ -38,7 +41,8 @@ public record DeepResearchPlan
         KeywordQueries = Array.Empty<string>(),
         VectorQueries = Array.Empty<string>(),
         PageIndices = Array.Empty<int>(),
-        IsComplete = false
+        IsComplete = false,
+        IsTemporalQuery = false
     };
 }
 

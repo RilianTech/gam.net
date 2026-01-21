@@ -26,7 +26,7 @@ public class MemoryAgentTests
         
         // Setup default prompt provider behavior
         _promptProviderMock.Setup(x => x.GetMemorySystemPrompt()).Returns("System prompt");
-        _promptProviderMock.Setup(x => x.BuildMemoryUserPrompt(It.IsAny<ConversationTurn>())).Returns("User prompt");
+        _promptProviderMock.Setup(x => x.BuildMemoryUserPrompt(It.IsAny<MemoryInput>())).Returns("User prompt");
         
         _agent = new MemoryAgent(_llmMock.Object, _embeddingMock.Object, _promptProviderMock.Object, _loggerMock.Object);
     }
@@ -35,11 +35,10 @@ public class MemoryAgentTests
     public async Task CreatePageAsync_ShouldGenerateEmbedding()
     {
         // Arrange
-        var turn = new ConversationTurn
+        var input = new MemoryInput
         {
             OwnerId = "test-user",
-            UserMessage = "Hello",
-            AssistantMessage = "Hi there!",
+            Content = "User: Hello\nAssistant: Hi there!",
             Timestamp = DateTimeOffset.UtcNow
         };
 
@@ -49,7 +48,7 @@ public class MemoryAgentTests
             .ReturnsAsync(expectedEmbedding);
 
         // Act
-        var page = await _agent.CreatePageAsync(turn);
+        var page = await _agent.CreatePageAsync(input);
 
         // Assert
         page.Should().NotBeNull();
@@ -64,11 +63,10 @@ public class MemoryAgentTests
     public async Task GenerateAbstractAsync_ShouldParseResponse()
     {
         // Arrange
-        var turn = new ConversationTurn
+        var input = new MemoryInput
         {
             OwnerId = "test-user",
-            UserMessage = "How do I use Docker?",
-            AssistantMessage = "Docker is a containerization platform...",
+            Content = "User: How do I use Docker?\nAssistant: Docker is a containerization platform...",
             Timestamp = DateTimeOffset.UtcNow
         };
 
@@ -95,7 +93,7 @@ public class MemoryAgentTests
             .ReturnsAsync(expectedEmbedding);
 
         // Act
-        var result = await _agent.GenerateAbstractAsync(turn);
+        var result = await _agent.GenerateAbstractAsync(input);
 
         // Assert
         result.Should().NotBeNull();
@@ -112,11 +110,10 @@ public class MemoryAgentTests
     public async Task GenerateAbstractAsync_ShouldParseJsonResponse()
     {
         // Arrange
-        var turn = new ConversationTurn
+        var input = new MemoryInput
         {
             OwnerId = "test-user",
-            UserMessage = "Let's use PostgreSQL for the database",
-            AssistantMessage = "PostgreSQL is a great choice for ACID compliance...",
+            Content = "User: Let's use PostgreSQL for the database\nAssistant: PostgreSQL is a great choice for ACID compliance...",
             Timestamp = DateTimeOffset.UtcNow
         };
 
@@ -145,7 +142,7 @@ public class MemoryAgentTests
             .ReturnsAsync(expectedEmbedding);
 
         // Act
-        var result = await _agent.GenerateAbstractAsync(turn);
+        var result = await _agent.GenerateAbstractAsync(input);
 
         // Assert
         result.Should().NotBeNull();

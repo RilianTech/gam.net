@@ -146,8 +146,13 @@ public class PostgresMemoryStore : IMemoryStore
                 cmd.Parameters.AddWithValue("token_count", page.TokenCount);
                 cmd.Parameters.AddWithValue("embedding", page.Embedding != null 
                     ? new Vector(page.Embedding) : DBNull.Value);
-                cmd.Parameters.AddWithValue("metadata", page.Metadata != null 
-                    ? JsonSerializer.Serialize(page.Metadata) : DBNull.Value);
+                var metadataParam = new NpgsqlParameter("metadata", NpgsqlTypes.NpgsqlDbType.Jsonb)
+                {
+                    Value = page.Metadata != null 
+                        ? JsonSerializer.Serialize(page.Metadata) 
+                        : DBNull.Value
+                };
+                cmd.Parameters.Add(metadataParam);
                 cmd.Parameters.AddWithValue("created_at", page.CreatedAt);
                 cmd.Parameters.AddWithValue("importance", page.Importance);
                 cmd.Parameters.AddWithValue("access_count", page.AccessCount);

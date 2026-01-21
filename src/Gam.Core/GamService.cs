@@ -33,13 +33,13 @@ public class GamService : IGamService
 
     public async Task MemorizeAsync(MemorizeRequest request, CancellationToken ct = default)
     {
-        _logger.LogInformation("Memorizing conversation turn for {OwnerId}", request.Turn.OwnerId);
+        _logger.LogInformation("Memorizing content for {OwnerId}", request.Input.OwnerId);
 
         // Create the memory page
-        var page = await _memoryAgent.CreatePageAsync(request.Turn, ct);
+        var page = await _memoryAgent.CreatePageAsync(request.Input, ct);
         
         // Generate abstract (includes type, importance, tags from ADR-0002)
-        var result = await _memoryAgent.GenerateAbstractAsync(request.Turn, ct);
+        var result = await _memoryAgent.GenerateAbstractAsync(request.Input, ct);
         
         // Update abstract with correct page ID
         var abstractData = result.Abstract with { PageId = page.Id };
@@ -51,7 +51,7 @@ public class GamService : IGamService
         await _store.StorePageWithAbstractAsync(page, abstractData, ct);
         
         _logger.LogInformation("Stored memory page {PageId} for {OwnerId} (type={Type}, importance={Importance:F2})", 
-            page.Id, request.Turn.OwnerId, abstractData.Type, page.Importance);
+            page.Id, request.Input.OwnerId, abstractData.Type, page.Importance);
         
         // === ADR-0002: Create relationships ===
         if (_relationshipService != null)
@@ -63,7 +63,7 @@ public class GamService : IGamService
                 {
                     await _relationshipService.CreateTagBasedRelationshipsAsync(
                         abstractData, 
-                        request.Turn.OwnerId, 
+                        request.Input.OwnerId, 
                         minOverlap: 2,
                         minConfidence: 0.3f,
                         ct);
@@ -72,7 +72,7 @@ public class GamService : IGamService
                 // Create temporal relationships (PRECEDED_BY)
                 await _relationshipService.CreateTemporalRelationshipsAsync(
                     page.Id,
-                    request.Turn.OwnerId,
+                    request.Input.OwnerId,
                     maxPrecedingMemories: 3,
                     ct);
             }

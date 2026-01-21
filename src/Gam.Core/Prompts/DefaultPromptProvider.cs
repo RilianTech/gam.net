@@ -42,10 +42,10 @@ public class DefaultPromptProvider : IPromptProvider
 
     public string GetMemorySystemPrompt() => _memorySystemPrompt.Value;
 
-    public string BuildMemoryUserPrompt(ConversationTurn turn)
+    public string BuildMemoryUserPrompt(MemoryInput input)
     {
         // Use the enhanced prompt from MemoryPrompts (ADR-0002)
-        return MemoryPrompts.BuildAbstractPrompt(turn);
+        return MemoryPrompts.BuildAbstractPrompt(input);
     }
 
     public string GetPlanSystemPrompt() => _planSystemPrompt.Value;

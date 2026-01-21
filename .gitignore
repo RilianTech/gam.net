@@ -117,3 +117,8 @@ appsettings.*.json
 !appsettings.json
 !appsettings.Development.json
 secrets.json
+
+# External benchmark datasets (download separately)
+locomo10.json
+locomo*.json
+benchmark-results/
