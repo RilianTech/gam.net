@@ -88,7 +88,7 @@ public class LoCoMoBenchmarkTests : IAsyncLifetime
 
         // Setup DI
         var services = new ServiceCollection();
-        services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+        services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Debug));
         
         var model = _configuration["OpenAI:Model"] ?? "gpt-4o-mini";
         var embeddingModel = _configuration["OpenAI:EmbeddingModel"] ?? "text-embedding-3-small";
@@ -714,20 +714,28 @@ public class LoCoMoBenchmarkTests : IAsyncLifetime
         return Path.Combine(resultsDir, $"locomo-{testName}-{safeModel}-{timestamp}.txt");
     }
 
-    private static async Task RunMigrationsAsync(string connectionString)
+    private async Task RunMigrationsAsync(string connectionString)
     {
         await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
 
+        // Required: pgvector extension
         await using var cmdExt = new NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS vector;", conn);
         await cmdExt.ExecuteNonQueryAsync();
 
+        // Optional: pg_textsearch for BM25 (Timescale)
+        var hasPgTextSearch = false;
         try
         {
             await using var cmdBm25 = new NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS pg_textsearch;", conn);
             await cmdBm25.ExecuteNonQueryAsync();
+            hasPgTextSearch = true;
+            Log("pg_textsearch extension enabled");
         }
-        catch { /* pg_textsearch not available */ }
+        catch (PostgresException ex)
+        {
+            Log($"pg_textsearch not available: {ex.Message}");
+        }
 
         const string schema = """
             CREATE TABLE IF NOT EXISTS memory_pages (
@@ -777,14 +785,26 @@ public class LoCoMoBenchmarkTests : IAsyncLifetime
         await using var cmdSchema = new NpgsqlCommand(schema, conn);
         await cmdSchema.ExecuteNonQueryAsync();
 
-        // Try to create BM25 index
-        try
+        // Create BM25 index if pg_textsearch is available
+        if (hasPgTextSearch)
         {
-            await using var cmdBm25Idx = new NpgsqlCommand(
-                "CREATE INDEX IF NOT EXISTS idx_pages_bm25 ON memory_pages USING bm25(content) WITH (text_config='english');", 
-                conn);
-            await cmdBm25Idx.ExecuteNonQueryAsync();
+            try
+            {
+                await using var cmdBm25Idx = new NpgsqlCommand(
+                    "CREATE INDEX IF NOT EXISTS idx_pages_bm25 ON memory_pages USING bm25(content) WITH (text_config='english');", 
+                    conn);
+                await cmdBm25Idx.ExecuteNonQueryAsync();
+                Log("BM25 index created on memory_pages.content");
+            }
+            catch (PostgresException ex)
+            {
+                Log($"Failed to create BM25 index: {ex.Message}");
+                throw; // Don't swallow - this is a real error if pg_textsearch is enabled
+            }
         }
-        catch { /* BM25 not available */ }
+        else
+        {
+            Log("Using native PostgreSQL full-text search (no BM25)");
+        }
     }
 }

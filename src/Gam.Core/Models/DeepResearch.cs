@@ -151,8 +151,12 @@ public class DeepResearchOptions
     /// <summary>Maximum tokens in final context.</summary>
     public int MaxContextTokens { get; set; } = 8000;
     
-    /// <summary>Minimum relevance score to include a result.</summary>
-    public float MinRelevanceScore { get; set; } = 0.3f;
+    /// <summary>
+    /// Minimum relevance score to include a result.
+    /// Note: Native PostgreSQL FTS (ts_rank_cd) returns scores in 0.0-0.2 range,
+    /// while vector similarity is typically 0.3-0.9. Keep this low for FTS compatibility.
+    /// </summary>
+    public float MinRelevanceScore { get; set; } = 0.05f;
     
     // === ADR-0002 Phase 5: Relationship-aware retrieval ===
     
