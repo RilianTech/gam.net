@@ -3,6 +3,7 @@ using Gam.Core.Abstractions;
 using Gam.Core.Models;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using NpgsqlTypes;
 using Pgvector;
 
 namespace Gam.Storage.Postgres;
@@ -79,8 +80,10 @@ public class PostgresMemoryStore : IMemoryStore
         cmd.Parameters.AddWithValue("token_count", page.TokenCount);
         cmd.Parameters.AddWithValue("embedding", page.Embedding != null 
             ? new Vector(page.Embedding) : DBNull.Value);
-        cmd.Parameters.AddWithValue("metadata", page.Metadata != null 
-            ? JsonSerializer.Serialize(page.Metadata) : DBNull.Value);
+        var metadataParam = new NpgsqlParameter("metadata", NpgsqlDbType.Jsonb);
+        metadataParam.Value = page.Metadata != null 
+            ? JsonSerializer.Serialize(page.Metadata) : DBNull.Value;
+        cmd.Parameters.Add(metadataParam);
         cmd.Parameters.AddWithValue("created_at", page.CreatedAt);
 
         await cmd.ExecuteNonQueryAsync(ct);
@@ -129,8 +132,10 @@ public class PostgresMemoryStore : IMemoryStore
                 cmd.Parameters.AddWithValue("token_count", page.TokenCount);
                 cmd.Parameters.AddWithValue("embedding", page.Embedding != null 
                     ? new Vector(page.Embedding) : DBNull.Value);
-                cmd.Parameters.AddWithValue("metadata", page.Metadata != null 
-                    ? JsonSerializer.Serialize(page.Metadata) : DBNull.Value);
+                var metadataParam = new NpgsqlParameter("metadata", NpgsqlDbType.Jsonb);
+                metadataParam.Value = page.Metadata != null 
+                    ? JsonSerializer.Serialize(page.Metadata) : DBNull.Value;
+                cmd.Parameters.Add(metadataParam);
                 cmd.Parameters.AddWithValue("created_at", page.CreatedAt);
                 await cmd.ExecuteNonQueryAsync(ct);
             }

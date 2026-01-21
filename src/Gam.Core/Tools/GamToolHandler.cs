@@ -52,18 +52,15 @@ public class GamToolHandler
     {
         var ownerId = args.GetProperty("owner_id").GetString()
             ?? throw new ArgumentException("owner_id is required");
-        var userMessage = args.GetProperty("user_message").GetString()
-            ?? throw new ArgumentException("user_message is required");
-        var assistantMessage = args.GetProperty("assistant_message").GetString()
-            ?? throw new ArgumentException("assistant_message is required");
+        var content = args.GetProperty("content").GetString()
+            ?? throw new ArgumentException("content is required");
 
         await _gam.MemorizeAsync(new MemorizeRequest
         {
-            Turn = new ConversationTurn
+            Input = new MemoryInput
             {
                 OwnerId = ownerId,
-                UserMessage = userMessage,
-                AssistantMessage = assistantMessage,
+                Content = content,
                 Timestamp = DateTimeOffset.UtcNow
             }
         }, ct);

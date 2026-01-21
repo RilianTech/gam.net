@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Gam.Core.Agents;
 
 /// <summary>
-/// Processes conversation turns into memory pages.
+/// Processes content into memory pages.
 /// Runs offline (not in the critical path of user requests).
 /// </summary>
 public class MemoryAgent : IMemoryAgent
@@ -30,11 +30,11 @@ public class MemoryAgent : IMemoryAgent
     }
 
     public async Task<MemoryAbstract> GenerateAbstractAsync(
-        ConversationTurn turn,
+        MemoryInput input,
         CancellationToken ct = default)
     {
         var systemPrompt = _promptProvider.GetMemorySystemPrompt();
-        var userPrompt = _promptProvider.BuildMemoryUserPrompt(turn);
+        var userPrompt = _promptProvider.BuildMemoryUserPrompt(input);
         
         var messages = new List<LlmMessage>
         {
@@ -42,7 +42,7 @@ public class MemoryAgent : IMemoryAgent
             new(LlmRole.User, userPrompt)
         };
 
-        _logger.LogDebug("Generating abstract for conversation turn from {OwnerId}", turn.OwnerId);
+        _logger.LogDebug("Generating abstract for content from {OwnerId}", input.OwnerId);
 
         var response = await _llm.CompleteAsync(messages, new LlmOptions
         {
@@ -60,7 +60,7 @@ public class MemoryAgent : IMemoryAgent
         return new MemoryAbstract
         {
             PageId = Guid.NewGuid(),  // Will be set when creating page
-            OwnerId = turn.OwnerId,
+            OwnerId = input.OwnerId,
             Summary = parsed.Summary,
             Headers = parsed.Headers,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -69,14 +69,14 @@ public class MemoryAgent : IMemoryAgent
     }
 
     public async Task<MemoryPage> CreatePageAsync(
-        ConversationTurn turn,
+        MemoryInput input,
         CancellationToken ct = default)
     {
         var pageId = Guid.NewGuid();
-        var content = FormatPageContent(turn);
+        var content = FormatPageContent(input);
         var tokenCount = EstimateTokenCount(content);
         
-        _logger.LogDebug("Creating memory page for {OwnerId}, ~{TokenCount} tokens", turn.OwnerId, tokenCount);
+        _logger.LogDebug("Creating memory page for {OwnerId}, ~{TokenCount} tokens", input.OwnerId, tokenCount);
         
         // Generate embedding for the full content
         var embedding = await _embedding.EmbedAsync(content, ct);
@@ -84,30 +84,35 @@ public class MemoryAgent : IMemoryAgent
         return new MemoryPage
         {
             Id = pageId,
-            OwnerId = turn.OwnerId,
+            OwnerId = input.OwnerId,
             Content = content,
             TokenCount = tokenCount,
             CreatedAt = DateTimeOffset.UtcNow,
             Embedding = embedding,
-            Metadata = turn.Metadata
+            Metadata = input.Metadata
         };
     }
 
-    private static string FormatPageContent(ConversationTurn turn)
+    private static string FormatPageContent(MemoryInput input)
     {
         var sb = new StringBuilder();
         
-        sb.AppendLine($"[Conversation on {turn.Timestamp:yyyy-MM-dd HH:mm}]");
+        // Include timestamp if available
+        sb.AppendLine($"[Memory recorded on {input.Timestamp:yyyy-MM-dd HH:mm}]");
+        if (!string.IsNullOrEmpty(input.SessionId))
+        {
+            sb.AppendLine($"[Session: {input.SessionId}]");
+        }
         sb.AppendLine();
-        sb.AppendLine($"User: {turn.UserMessage}");
-        sb.AppendLine();
-        sb.AppendLine($"Assistant: {turn.AssistantMessage}");
         
-        if (turn.ToolCalls is { Count: > 0 })
+        // The content is already formatted (e.g., session dialogue)
+        sb.Append(input.Content);
+        
+        if (input.ToolCalls is { Count: > 0 })
         {
             sb.AppendLine();
             sb.AppendLine("Tool Calls:");
-            foreach (var tool in turn.ToolCalls)
+            foreach (var tool in input.ToolCalls)
             {
                 sb.AppendLine($"  - {tool.ToolName}: {tool.Result}");
             }

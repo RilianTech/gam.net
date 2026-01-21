@@ -3,23 +3,23 @@ namespace Gam.Core.Abstractions;
 using Gam.Core.Models;
 
 /// <summary>
-/// Processes conversation turns into storable memory pages.
+/// Processes content into storable memory pages.
 /// Runs offline (not in the critical path of user requests).
 /// </summary>
 public interface IMemoryAgent
 {
     /// <summary>
-    /// Generate an abstract (summary + headers) for a conversation turn.
+    /// Generate an abstract (summary + headers) for content.
     /// </summary>
     Task<MemoryAbstract> GenerateAbstractAsync(
-        ConversationTurn turn, 
+        MemoryInput input, 
         CancellationToken ct = default);
     
     /// <summary>
-    /// Create a complete memory page from a conversation turn.
+    /// Create a complete memory page from content.
     /// Includes generating abstract and preparing for storage.
     /// </summary>
     Task<MemoryPage> CreatePageAsync(
-        ConversationTurn turn, 
+        MemoryInput input, 
         CancellationToken ct = default);
 }

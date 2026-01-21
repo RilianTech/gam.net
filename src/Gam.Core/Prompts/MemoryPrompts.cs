@@ -45,28 +45,26 @@ public static class MemoryPrompts
     /// <summary>
     /// Build the user prompt for abstract generation.
     /// </summary>
-    public static string BuildAbstractPrompt(ConversationTurn turn)
+    public static string BuildAbstractPrompt(MemoryInput input)
     {
         var sb = new StringBuilder();
         
         sb.AppendLine("Write an abstract for the following page to be added to the library:");
         sb.AppendLine();
         sb.AppendLine("---PAGE CONTENT---");
-        sb.AppendLine($"Date: {turn.Timestamp:yyyy-MM-dd HH:mm}");
-        if (!string.IsNullOrEmpty(turn.ConversationId))
+        sb.AppendLine($"Date: {input.Timestamp:yyyy-MM-dd HH:mm}");
+        if (!string.IsNullOrEmpty(input.SessionId))
         {
-            sb.AppendLine($"Conversation: {turn.ConversationId}");
+            sb.AppendLine($"Session: {input.SessionId}");
         }
         sb.AppendLine();
-        sb.AppendLine($"User: {turn.UserMessage}");
-        sb.AppendLine();
-        sb.AppendLine($"Assistant: {turn.AssistantMessage}");
+        sb.AppendLine(input.Content);
         
-        if (turn.ToolCalls is { Count: > 0 })
+        if (input.ToolCalls is { Count: > 0 })
         {
             sb.AppendLine();
             sb.AppendLine("Tools used:");
-            foreach (var tool in turn.ToolCalls)
+            foreach (var tool in input.ToolCalls)
             {
                 sb.AppendLine($"  - {tool.ToolName}: {tool.Result}");
             }

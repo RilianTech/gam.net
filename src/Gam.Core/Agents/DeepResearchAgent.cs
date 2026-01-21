@@ -186,7 +186,16 @@ public class DeepResearchAgent : IResearchAgent
         var response = await _llm.CompleteAsync(messages, 
             new LlmOptions { Temperature = 0.3f, MaxTokens = 800 }, ct);
 
+        _logger.LogDebug("Plan LLM response:\n{Response}", response.Content);
+        
         var plan = DeepResearchPrompts.ParsePlanResponse(response.Content);
+        
+        _logger.LogInformation("Parsed plan - Tools: [{Tools}], KeywordQueries: {KwCount} [{KwQueries}], VectorQueries: {VecCount} [{VecQueries}]",
+            string.Join(", ", plan.Tools),
+            plan.KeywordQueries.Count,
+            string.Join(", ", plan.KeywordQueries.Take(3)),
+            plan.VectorQueries.Count,
+            string.Join(", ", plan.VectorQueries.Take(3)));
         
         // Apply limits
         return plan with
@@ -214,19 +223,29 @@ public class DeepResearchAgent : IResearchAgent
         };
 
         // Execute ALL keyword queries
-        if (plan.Tools.Contains("keyword") && plan.KeywordQueries.Count > 0)
+        var keywordToolEnabled = plan.Tools.Contains("keyword");
+        _logger.LogDebug("Keyword search: tools.Contains('keyword')={Enabled}, KeywordQueries.Count={Count}", 
+            keywordToolEnabled, plan.KeywordQueries.Count);
+        
+        if (keywordToolEnabled && plan.KeywordQueries.Count > 0)
         {
             foreach (var kw in plan.KeywordQueries)
             {
+                _logger.LogDebug("Adding keyword query: {Query}", kw);
                 tasks.Add(ExecuteKeywordQueryAsync(baseQuery with { Query = kw }, ct));
             }
         }
 
         // Execute ALL vector queries
-        if (plan.Tools.Contains("vector") && plan.VectorQueries.Count > 0)
+        var vectorToolEnabled = plan.Tools.Contains("vector");
+        _logger.LogDebug("Vector search: tools.Contains('vector')={Enabled}, VectorQueries.Count={Count}", 
+            vectorToolEnabled, plan.VectorQueries.Count);
+        
+        if (vectorToolEnabled && plan.VectorQueries.Count > 0)
         {
             foreach (var vq in plan.VectorQueries)
             {
+                _logger.LogDebug("Adding vector query: {Query}", vq);
                 tasks.Add(ExecuteVectorQueryAsync(baseQuery with { Query = vq }, ct));
             }
         }

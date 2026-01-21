@@ -103,6 +103,12 @@ coverage/
 # BenchmarkDotNet
 BenchmarkDotNet.Artifacts/
 
+# Benchmark results (generated at runtime)
+benchmark-results/
+
+# LoCoMo dataset (download separately - too large for git)
+locomo*.json
+
 # JetBrains Rider
 .idea/
 *.sln.iml

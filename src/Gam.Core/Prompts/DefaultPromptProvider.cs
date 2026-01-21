@@ -42,30 +42,28 @@ public class DefaultPromptProvider : IPromptProvider
 
     public string GetMemorySystemPrompt() => _memorySystemPrompt.Value;
 
-    public string BuildMemoryUserPrompt(ConversationTurn turn)
+    public string BuildMemoryUserPrompt(MemoryInput input)
     {
         var sb = new StringBuilder();
         
         sb.AppendLine("Write an abstract for the following page to be added to the library:");
         sb.AppendLine();
         sb.AppendLine("---PAGE CONTENT---");
-        sb.AppendLine($"Date: {turn.Timestamp:yyyy-MM-dd HH:mm}");
+        sb.AppendLine($"Date: {input.Timestamp:yyyy-MM-dd HH:mm}");
         
-        if (_options.IncludeConversationId && !string.IsNullOrEmpty(turn.ConversationId))
+        if (_options.IncludeSessionId && !string.IsNullOrEmpty(input.SessionId))
         {
-            sb.AppendLine($"Conversation: {turn.ConversationId}");
+            sb.AppendLine($"Session: {input.SessionId}");
         }
         
         sb.AppendLine();
-        sb.AppendLine($"User: {turn.UserMessage}");
-        sb.AppendLine();
-        sb.AppendLine($"Assistant: {turn.AssistantMessage}");
+        sb.AppendLine(input.Content);
         
-        if (_options.IncludeToolCalls && turn.ToolCalls is { Count: > 0 })
+        if (_options.IncludeToolCalls && input.ToolCalls is { Count: > 0 })
         {
             sb.AppendLine();
             sb.AppendLine("Tools used:");
-            foreach (var tool in turn.ToolCalls)
+            foreach (var tool in input.ToolCalls)
             {
                 sb.AppendLine($"  - {tool.ToolName}: {tool.Result}");
             }

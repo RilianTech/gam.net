@@ -47,12 +47,13 @@ Console.WriteLine();
 Console.WriteLine("Storing a memory...");
 await gam.MemorizeAsync(new MemorizeRequest
 {
-    Turn = new ConversationTurn
+    Input = new MemoryInput
     {
         OwnerId = "demo-user",
-        UserMessage = "How do I configure Kubernetes health checks?",
-        AssistantMessage = """
-            You can configure liveness and readiness probes in your pod spec:
+        Content = """
+            User: How do I configure Kubernetes health checks?
+            
+            Assistant: You can configure liveness and readiness probes in your pod spec:
             
             ```yaml
             livenessProbe:

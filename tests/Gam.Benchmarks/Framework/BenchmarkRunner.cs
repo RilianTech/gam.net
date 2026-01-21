@@ -55,17 +55,18 @@ public class BenchmarkRunner
             
             if (userTurn.Role != "user") continue;
             
-            var turn = new ConversationTurn
+            var content = $"User: {userTurn.Content}\nAssistant: {assistantTurn?.Content ?? ""}";
+            
+            var input = new MemoryInput
             {
                 OwnerId = ownerId,
-                ConversationId = conversation.Id,
-                TurnNumber = i / 2,
-                UserMessage = userTurn.Content,
-                AssistantMessage = assistantTurn?.Content ?? "",
+                SessionId = conversation.Id,
+                SequenceNumber = i / 2,
+                Content = content,
                 Timestamp = userTurn.Timestamp ?? DateTimeOffset.UtcNow
             };
             
-            await _gam.MemorizeAsync(new MemorizeRequest { Turn = turn }, ct);
+            await _gam.MemorizeAsync(new MemorizeRequest { Input = input }, ct);
         }
     }
     

@@ -28,13 +28,13 @@ public class GamService : IGamService
 
     public async Task MemorizeAsync(MemorizeRequest request, CancellationToken ct = default)
     {
-        _logger.LogInformation("Memorizing conversation turn for {OwnerId}", request.Turn.OwnerId);
+        _logger.LogInformation("Memorizing content for {OwnerId}", request.Input.OwnerId);
 
         // Create the memory page
-        var page = await _memoryAgent.CreatePageAsync(request.Turn, ct);
+        var page = await _memoryAgent.CreatePageAsync(request.Input, ct);
         
         // Generate abstract
-        var abstractData = await _memoryAgent.GenerateAbstractAsync(request.Turn, ct);
+        var abstractData = await _memoryAgent.GenerateAbstractAsync(request.Input, ct);
         
         // Update abstract with correct page ID
         abstractData = abstractData with { PageId = page.Id };
@@ -42,7 +42,7 @@ public class GamService : IGamService
         // Store both
         await _store.StorePageWithAbstractAsync(page, abstractData, ct);
         
-        _logger.LogInformation("Stored memory page {PageId} for {OwnerId}", page.Id, request.Turn.OwnerId);
+        _logger.LogInformation("Stored memory page {PageId} for {OwnerId}", page.Id, request.Input.OwnerId);
     }
 
     public async Task<MemoryContext> ResearchAsync(ResearchRequest request, CancellationToken ct = default)
